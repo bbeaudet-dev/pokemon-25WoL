@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Check, LogOut, RotateCcw, Send, Sparkles } from "lucide-react";
+import { Check, Crown, LogOut, RotateCcw, Send, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -82,9 +82,10 @@ export function GameRoomBoard({
               onError={onError}
             />
           ) : null}
-          <HintWordGrid
-            round={round}
-            settings={room.game.settings}
+          <Scoreboard
+            room={room}
+            hintmasterId={round.hintGiverPlayerId}
+            latestHintId={latestHintId}
           />
         </div>
 
@@ -96,13 +97,12 @@ export function GameRoomBoard({
         />
       </section>
 
-      <Scoreboard
-        room={room}
-        hintmasterId={round.hintGiverPlayerId}
-        latestHintId={latestHintId}
+      <HintWordGrid
+        round={round}
+        settings={room.game.settings}
       />
 
-      <footer className="mb-6 flex items-center justify-between px-2 text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+      <footer className="mb-6 flex items-center justify-end gap-5 px-2 text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
         <span>Lobby {code}</span>
         <button className="flex items-center gap-2 text-yellow-300" onClick={onLeave}>
           <LogOut className="h-4 w-4" />
@@ -123,6 +123,13 @@ function Scoreboard({
   latestHintId?: string;
 }) {
   const scores = room.game?.scores ?? [];
+  const projectedHintmasterScore =
+    room.round && room.game
+      ? Math.max(
+          room.game.settings.scoringWordLimit - room.round.hintWords.length,
+          room.game.settings.scoringWordLimit - room.game.settings.hardWordLimit,
+        )
+      : 0;
   const guessesByPlayer = new Map(
     room.players.map((player) => [
       player.id,
@@ -149,11 +156,16 @@ function Scoreboard({
   );
 
   return (
-    <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <section className="grid grid-cols-2 gap-3">
       {room.players.map((player) => {
         const score = scores.find((entry) => entry.playerId === player.id);
         const totals = guessTotals.get(player.id) ?? { earned: 0, penalties: 0 };
-        const netRoundScore = score?.roundScore ?? 0;
+        const displayEarned =
+          player.id === hintmasterId ? projectedHintmasterScore : totals.earned;
+        const netRoundScore =
+          player.id === hintmasterId
+            ? projectedHintmasterScore
+            : score?.roundScore ?? 0;
         const latestGuess = guessesByPlayer.get(player.id);
         const roundScoreClass =
           netRoundScore < 0
@@ -162,28 +174,39 @@ function Scoreboard({
               ? "text-yellow-600"
               : "text-green-600";
         return (
-          <div className="grid gap-2" key={player.id}>
-            <div className="min-h-12 rounded-2xl bg-black/30 px-4 py-2 text-sm font-bold">
-              {latestGuess ? (
-                <span>
-                  {latestGuess.guessedWord.label}
+          <div
+            className={`relative ${latestGuess ? "pt-10" : "pt-5"}`}
+            key={player.id}
+          >
+            {latestGuess ? (
+              <div className="absolute left-3 top-0 z-10 max-w-[calc(100%-1.5rem)] rounded-2xl bg-black/80 px-2 py-1 text-xs font-bold text-white shadow-xl">
+                <div className="flex items-center gap-2">
+                  <WordImage
+                    imageUrl={latestGuess.guessedWord.imageUrl}
+                    label={latestGuess.guessedWord.label}
+                    size="sm"
+                  />
+                  <span className="min-w-0 truncate">
+                    {latestGuess.guessedWord.label}
+                  </span>
                   <span
                     className={
-                      latestGuess.isCorrect ? "ml-2 text-green-300" : "ml-2 text-slate-400"
+                      latestGuess.isCorrect ? "text-green-300" : "text-slate-400"
                     }
                   >
                     {latestGuess.isCorrect ? "Correct" : "Miss"}
                   </span>
-                </span>
-              ) : null}
-            </div>
+                </div>
+              </div>
+            ) : null}
             <div className="clip-score relative flex min-h-20 items-center gap-3 bg-white px-4 py-3 pt-5 text-black shadow-lg">
               {player.id === hintmasterId ? (
-                <div className="absolute left-6 right-8 top-0 rounded-b-xl bg-yellow-300 px-3 py-1 text-center text-[10px] font-black uppercase tracking-widest text-black">
-                  Hintmaster
+                <div className="absolute left-6 right-8 top-0 flex items-center justify-center gap-1 rounded-b-xl bg-yellow-300 px-3 py-1 text-center text-[10px] font-black uppercase tracking-widest text-black">
+                  <Crown className="h-3 w-3" />
+                  <span>Hintmaster</span>
                 </div>
               ) : null}
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
+              <div className="ml-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
                 {player.displayName.slice(0, 1).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
@@ -193,8 +216,8 @@ function Scoreboard({
               </div>
               <div className="text-right">
                 <p className={`text-sm font-black ${roundScoreClass}`}>
-                  +{totals.earned}
-                  {totals.penalties ? (
+                  +{displayEarned}
+                  {player.id !== hintmasterId && totals.penalties ? (
                     <span className="ml-2 text-red-600">-{totals.penalties}</span>
                   ) : null}
                 </p>
@@ -221,6 +244,7 @@ function TargetConfirmModal({
 }) {
   const rerollTargets = useMutation(convexApi.games.rerollTargets);
   const confirmTargets = useMutation(convexApi.games.confirmTargets);
+  const nextRerollCost = Math.max(0, round.rerollCount);
 
   async function run(action: () => Promise<unknown>) {
     onError(null);
@@ -239,10 +263,16 @@ function TargetConfirmModal({
         </p>
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           {round.targetWords.map((target, index) => (
-            <div className="clip-score bg-white px-4 py-3 font-black text-black" key={target.contentId}>
+            <div
+              className="clip-score flex items-center gap-3 bg-white px-4 py-3 font-black text-black"
+              key={target.contentId}
+            >
               <span className="mr-3 rounded bg-yellow-200 px-2 py-1 text-xs">
                 {index + 1}
               </span>
+              {isHintmaster ? (
+                <WordImage imageUrl={target.imageUrl} label={target.label} />
+              ) : null}
               {isHintmaster ? target.label : "Hidden"}
             </div>
           ))}
@@ -250,11 +280,14 @@ function TargetConfirmModal({
         {isHintmaster ? (
           <div className="mt-6 flex justify-end gap-3">
             <button
-              className="rounded-2xl bg-purple-400 px-5 py-3 font-black text-black"
+              className="rounded-2xl bg-purple-400 px-5 py-3 font-black leading-tight text-black"
               onClick={() => run(() => rerollTargets({ roundId: round.id, guestId }))}
             >
               <RotateCcw className="mr-2 inline h-5 w-5" />
               Reroll
+              <span className="block text-xs">
+                Cost: {nextRerollCost === 0 ? "FREE" : `${nextRerollCost} word${nextRerollCost === 1 ? "" : "s"}`}
+              </span>
             </button>
             <button
               className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black"
@@ -311,6 +344,7 @@ function CurrentHint({
           {latestHint ? (
             <>
               <span className="font-black text-yellow-300">
+                <Crown className="mr-1 inline h-4 w-4 align-[-2px]" />
                 {hintmasterName}:
               </span>{" "}
               <span>{latestHint.text}</span>
@@ -363,7 +397,7 @@ function HintWordGrid({
               }`}
               key={index}
             >
-              <span className="rounded bg-yellow-200/70 px-1.5 py-0.5 text-[10px] text-black">
+              <span className="ml-1 rounded bg-yellow-200/70 px-1.5 py-0.5 text-[10px] text-black">
                 {index + 1}
               </span>
               <span className="truncate">{word?.text ?? ""}</span>
@@ -387,14 +421,14 @@ function TargetRail({
   players: GameRoom["players"];
 }) {
   return (
-    <aside className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-5">
-      <div className="grid gap-3">
+    <aside className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-4">
+      <div className="grid gap-2">
         {targetWords.map((target, index) => {
           const solved = target.solvedByPlayerIds.length > 0;
           const visible = isHintmaster || solved;
           return (
             <div
-              className={`clip-score flex items-center gap-3 px-4 py-3 font-black text-black ${
+              className={`clip-score flex items-center gap-2 px-3 py-2 text-sm font-black text-black ${
                 solved
                   ? "bg-green-200"
                   : index === currentTargetIndex
@@ -406,6 +440,9 @@ function TargetRail({
               <span className="ml-2 rounded bg-yellow-200 px-2 py-1 text-xs">
                 {index + 1}
               </span>
+              {visible ? (
+                <WordImage imageUrl={target.imageUrl} label={target.label} />
+              ) : null}
               <span className="min-w-0 flex-1 truncate">
                 {visible ? target.label : "Hidden"}
               </span>
@@ -491,12 +528,7 @@ function GuessPanel({
             onClick={() => guess(result.id)}
           >
             {result.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt=""
-                className="h-10 w-10 rounded-full bg-white object-contain"
-                src={result.imageUrl}
-              />
+              <WordImage imageUrl={result.imageUrl} label={result.label} />
             ) : (
               <Sparkles className="h-8 w-8 text-yellow-300" />
             )}
@@ -510,5 +542,37 @@ function GuessPanel({
         ))}
       </div>
     </section>
+  );
+}
+
+function WordImage({
+  imageUrl,
+  label,
+  size = "md",
+}: {
+  imageUrl?: string;
+  label: string;
+  size?: "sm" | "md";
+}) {
+  const sizeClass = size === "sm" ? "h-8 w-8" : "h-10 w-10";
+
+  if (!imageUrl) {
+    return (
+      <span
+        aria-hidden="true"
+        className={`${sizeClass} grid shrink-0 place-items-center rounded-full bg-white/80 text-slate-900`}
+      >
+        <Sparkles className="h-4 w-4" />
+      </span>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt={label}
+      className={`${sizeClass} shrink-0 rounded-full bg-white object-contain`}
+      src={imageUrl}
+    />
   );
 }
