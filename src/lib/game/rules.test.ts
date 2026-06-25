@@ -44,10 +44,10 @@ describe("makeGameSettings", () => {
 });
 
 describe("reroll costs", () => {
-  it("uses triangular costs for successive rerolls", () => {
-    expect(getTotalRerollWordCost(1)).toBe(1);
-    expect(getTotalRerollWordCost(2)).toBe(3);
-    expect(getTotalRerollWordCost(3)).toBe(6);
+  it("gives one free reroll before triangular costs begin", () => {
+    expect(getTotalRerollWordCost(1)).toBe(0);
+    expect(getTotalRerollWordCost(2)).toBe(1);
+    expect(getTotalRerollWordCost(3)).toBe(3);
   });
 });
 

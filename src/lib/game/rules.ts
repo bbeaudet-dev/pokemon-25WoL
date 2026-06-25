@@ -68,11 +68,11 @@ export function makeGameSettings(
 }
 
 export function getRerollWordCost(nextRerollNumber: number) {
-  return Math.max(1, nextRerollNumber);
+  return Math.max(0, nextRerollNumber - 1);
 }
 
 export function getTotalRerollWordCost(rerollCount: number) {
-  return (rerollCount * (rerollCount + 1)) / 2;
+  return (rerollCount * (rerollCount - 1)) / 2;
 }
 
 export function calculateHintGiverScore(

@@ -265,16 +265,20 @@ export const rerollTargets = mutationGeneric({
 
     const nextReroll = round.rerollCount + 1;
     const cost = getRerollWordCost(nextReroll);
-    const rerollWords = Array.from({ length: cost }, (_, index) => ({
-      id: crypto.randomUUID(),
-      text: cost === 1 ? `reroll ${nextReroll}` : `reroll ${nextReroll}${String.fromCharCode(97 + index)}`,
-      normalizedText:
+    const rerollWords = Array.from({ length: cost }, (_, index) => {
+      const text =
         cost === 1
-          ? normalizeWord(`reroll ${nextReroll}`)
-          : normalizeWord(`reroll ${nextReroll}${String.fromCharCode(97 + index)}`),
-      createdAt: Date.now(),
-      cost: 1,
-    }));
+          ? `reroll ${nextReroll}`
+          : `reroll ${nextReroll}${String.fromCharCode(97 + index)}`;
+
+      return {
+        id: crypto.randomUUID(),
+        text,
+        normalizedText: normalizeWord(text),
+        createdAt: Date.now(),
+        cost: 1,
+      };
+    });
     const targetWords = await selectTargetWords(ctx, game.settings);
 
     await ctx.db.patch(round._id, {
