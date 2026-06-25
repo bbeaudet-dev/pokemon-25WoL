@@ -1,3 +1,10 @@
 import next from "eslint-config-next/core-web-vitals";
 
-export default next;
+const config = [
+  {
+    ignores: ["convex/_generated/**"],
+  },
+  ...next,
+];
+
+export default config;
