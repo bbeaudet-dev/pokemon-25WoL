@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { Crown, RotateCcw, Send, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
+import type { Id } from "../../../convex/_generated/dataModel";
 import type { GuestIdentity } from "@/lib/guest";
 import { convexApi, type GameRoom } from "@/lib/convex-api";
 
@@ -405,7 +406,7 @@ function GuessPanel({
     limit: 8,
   });
 
-  async function guess(contentId: string) {
+  async function guess(contentId: Id<"content">) {
     if (!latestHintId) {
       onError("Wait for a submitted hint before guessing.");
       return;

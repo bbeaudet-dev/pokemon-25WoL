@@ -7,4 +7,3 @@ node_modules
 dist
 coverage
 *.tsbuildinfo
-convex/_generated
