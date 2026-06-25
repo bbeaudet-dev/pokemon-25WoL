@@ -49,7 +49,24 @@ flowchart LR
 
 ## Content Strategy
 
-PokeAPI should be treated as a seed source instead of queried during active gameplay. This gives fast search, stable data, and room for curated entries. Classic mode starts with Pokemon, games, professors, items, gym leaders, and regions. Advanced mode adds types, badges, towns, moves, and abilities. Terminology is intentionally deferred as a future category.
+PokeAPI is treated as an import-time seed source instead of queried during active gameplay. This gives fast search, stable data, and room for curated entries. Classic mode starts with Pokemon, games, professors, items, gym leaders, and regions. Advanced mode adds types, badges, towns, moves, and abilities. Terminology is intentionally deferred as a future category.
+
+Content rows are identified by category and normalized label together, so same-name entries can exist in different categories without overwriting each other. Imported rows keep source metadata (`source`, `sourceId`, and `sourceUrl`) so automated imports and curated entries can be audited later.
+
+The first expansion pass uses PokeAPI for categories it models directly:
+
+- `pokemon` from `pokemon-species`
+- `item` from `item`
+- `move` from `move`
+- `ability` from `ability`
+- `type` from `type`, excluding non-gameplay API types
+- `region` from `region`
+- `town` from `location`, with a later review pass because the API includes routes, caves, and facilities too
+- `game` from `version`
+
+Categories that PokeAPI does not model well should come from checked-in curated JSON or CSV files rather than runtime scraping. That includes gym leaders, badges, professors, terminology, and any human-readable aliases we want for game titles or locations.
+
+The content import script fetches complete PokeAPI resource lists, maps them to `content` records, deduplicates by category and normalized label, writes to Convex in batches, and prints counts for accepted, skipped, duplicate, and image-less records. Round target selection reads all enabled category pools before sampling so expanded datasets are not limited to the first page or first 100 records.
 
 ## Deployment
 

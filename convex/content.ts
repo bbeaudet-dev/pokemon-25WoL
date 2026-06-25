@@ -24,6 +24,7 @@ const seedWord = v.object({
   imageUrl: v.optional(v.string()),
   source: v.union(v.literal("pokeapi"), v.literal("curated")),
   sourceId: v.optional(v.string()),
+  sourceUrl: v.optional(v.string()),
 });
 
 async function upsertContentWord(ctx: any, word: any) {
@@ -31,8 +32,8 @@ async function upsertContentWord(ctx: any, word: any) {
   const normalizedLabel = normalizeWord(word.label);
   const existing = await ctx.db
     .query("content")
-    .withIndex("by_normalizedLabel", (q: any) =>
-      q.eq("normalizedLabel", normalizedLabel),
+    .withIndex("by_category_normalizedLabel", (q: any) =>
+      q.eq("category", word.category).eq("normalizedLabel", normalizedLabel),
     )
     .unique();
 
@@ -44,6 +45,7 @@ async function upsertContentWord(ctx: any, word: any) {
     imageUrl: word.imageUrl,
     source: word.source,
     sourceId: word.sourceId,
+    sourceUrl: word.sourceUrl,
     updatedAt: now,
   };
 
@@ -92,6 +94,7 @@ export const search = queryGeneric({
           imageUrl: word.imageUrl,
           source: word.source,
           sourceId: word.sourceId,
+          sourceUrl: word.sourceUrl,
         }));
     }
 
@@ -115,6 +118,7 @@ export const search = queryGeneric({
         imageUrl: word.imageUrl,
         source: word.source,
         sourceId: word.sourceId,
+        sourceUrl: word.sourceUrl,
       }));
   },
 });
@@ -145,9 +149,14 @@ export const upsertMany = mutationGeneric({
       args.words.map((word) => upsertContentWord(ctx, word)),
     );
 
+    const categories = args.words.reduce<Record<string, number>>((counts, word) => {
+      counts[word.category] = (counts[word.category] ?? 0) + 1;
+      return counts;
+    }, {});
+
     await ctx.db.insert("events", {
       type: "content.upserted",
-      payload: { count: ids.length },
+      payload: { count: ids.length, categories },
       createdAt: Date.now(),
     });
 

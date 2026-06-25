@@ -48,6 +48,7 @@ const contentWord = v.object({
   imageUrl: v.optional(v.string()),
   source: v.union(v.literal("pokeapi"), v.literal("curated")),
   sourceId: v.optional(v.string()),
+  sourceUrl: v.optional(v.string()),
 });
 
 const targetWord = v.object({
@@ -58,6 +59,7 @@ const targetWord = v.object({
   imageUrl: v.optional(v.string()),
   source: v.union(v.literal("pokeapi"), v.literal("curated")),
   sourceId: v.optional(v.string()),
+  sourceUrl: v.optional(v.string()),
   solvedByPlayerIds: v.array(v.id("players")),
   solvedAt: v.optional(v.number()),
 });
@@ -175,11 +177,13 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     source: v.union(v.literal("pokeapi"), v.literal("curated")),
     sourceId: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_normalizedLabel", ["normalizedLabel"])
     .index("by_category", ["category"])
+    .index("by_category_normalizedLabel", ["category", "normalizedLabel"])
     .searchIndex("search_label", {
       searchField: "searchText",
       filterFields: ["category"],

@@ -6,6 +6,7 @@ import {
   makeGameSettings,
   normalizeWord,
   scoreGuess,
+  selectRandomItems,
 } from "./rules";
 import type { TargetWord } from "./types";
 
@@ -70,6 +71,17 @@ describe("scoreGuess", () => {
         pointsPerCorrectGuess: 1,
       }),
     ).toEqual({ penaltyApplied: 1, pointsAwarded: 1, netPoints: 0 });
+  });
+});
+
+describe("selectRandomItems", () => {
+  it("can sample beyond the old 100-record category cap without mutating input", () => {
+    const items = Array.from({ length: 200 }, (_, index) => index + 1);
+    const selected = selectRandomItems(items, 150, () => 0.999999);
+
+    expect(selected).toHaveLength(150);
+    expect(selected).toContain(150);
+    expect(items.at(-1)).toBe(200);
   });
 });
 

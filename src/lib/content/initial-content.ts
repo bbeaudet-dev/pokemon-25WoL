@@ -7,6 +7,7 @@ export type InitialContentWord = {
   imageUrl?: string;
   source: WordSource;
   sourceId?: string;
+  sourceUrl?: string;
 };
 
 export const initialContentWords: InitialContentWord[] = [

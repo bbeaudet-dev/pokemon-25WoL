@@ -9,6 +9,7 @@ import {
   makeGameSettings,
   normalizeWord,
   scoreGuess,
+  selectRandomItems,
 } from "../src/lib/game/rules";
 
 async function getPlayerByGuestId(ctx: any, guestId: string) {
@@ -49,20 +50,16 @@ async function recordEvent(ctx: any, event: Record<string, unknown>) {
   });
 }
 
-function shuffle<T>(items: T[]) {
-  return [...items].sort(() => Math.random() - 0.5);
-}
-
 async function selectTargetWords(ctx: any, settings: any) {
   const contentByCategory = await Promise.all(
     settings.categories.map((category: string) =>
       ctx.db
         .query("content")
         .withIndex("by_category", (q: any) => q.eq("category", category))
-        .take(100),
+        .collect(),
     ),
   );
-  const content = shuffle(contentByCategory.flat());
+  const content = contentByCategory.flat();
 
   if (content.length < settings.targetWordsPerRound) {
     throw new Error(
@@ -70,16 +67,19 @@ async function selectTargetWords(ctx: any, settings: any) {
     );
   }
 
-  return content.slice(0, settings.targetWordsPerRound).map((word: any) => ({
-    contentId: word._id,
-    label: word.label,
-    normalizedLabel: word.normalizedLabel,
-    category: word.category,
-    imageUrl: word.imageUrl,
-    source: word.source,
-    sourceId: word.sourceId,
-    solvedByPlayerIds: [],
-  }));
+  return selectRandomItems(content, settings.targetWordsPerRound).map(
+    (word: any) => ({
+      contentId: word._id,
+      label: word.label,
+      normalizedLabel: word.normalizedLabel,
+      category: word.category,
+      imageUrl: word.imageUrl,
+      source: word.source,
+      sourceId: word.sourceId,
+      sourceUrl: word.sourceUrl,
+      solvedByPlayerIds: [],
+    }),
+  );
 }
 
 async function createRound(ctx: any, game: any, hintGiverPlayerId: string) {
@@ -489,6 +489,7 @@ export const submitGuess = mutationGeneric({
         imageUrl: guessedWord.imageUrl,
         source: guessedWord.source,
         sourceId: guessedWord.sourceId,
+        sourceUrl: guessedWord.sourceUrl,
       },
       targetIndex: round.currentTargetIndex,
       isCorrect,

@@ -67,6 +67,7 @@ export type ContentWord = {
   imageUrl?: string;
   source: WordSource;
   sourceId?: string;
+  sourceUrl?: string;
 };
 
 export type TargetWord = ContentWord & {
