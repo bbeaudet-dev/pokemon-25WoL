@@ -1,0 +1,543 @@
+import { mutationGeneric, queryGeneric } from "convex/server";
+import { v } from "convex/values";
+import {
+  calculateHintGiverScore,
+  composeHintText,
+  getPreviousGuessCountForHint,
+  getRerollWordCost,
+  hintViolatesTargetWords,
+  isGuessCorrect,
+  makeGameSettings,
+  normalizeWord,
+  scoreGuess,
+} from "../src/lib/game/rules";
+
+async function getPlayerByGuestId(ctx: any, guestId: string) {
+  return await ctx.db
+    .query("players")
+    .withIndex("by_guestId", (q: any) => q.eq("guestId", guestId))
+    .unique();
+}
+
+async function getLobbyPlayers(ctx: any, lobbyId: string) {
+  const memberships = await ctx.db
+    .query("lobbyPlayers")
+    .withIndex("by_lobby", (q: any) => q.eq("lobbyId", lobbyId))
+    .collect();
+
+  const players = await Promise.all(
+    memberships.map(async (membership: any) => {
+      const player = await ctx.db.get(membership.playerId);
+      return {
+        id: membership.playerId,
+        guestId: player?.guestId ?? "",
+        displayName: player?.displayName ?? "Unknown Player",
+        imageUrl: player?.imageUrl,
+        isHost: membership.isHost,
+        isReady: membership.isReady,
+        joinedAt: membership.joinedAt,
+      };
+    }),
+  );
+
+  return players.sort((a, b) => a.joinedAt - b.joinedAt);
+}
+
+async function recordEvent(ctx: any, event: Record<string, unknown>) {
+  await ctx.db.insert("events", {
+    ...event,
+    createdAt: Date.now(),
+  });
+}
+
+function shuffle<T>(items: T[]) {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+async function selectTargetWords(ctx: any, settings: any) {
+  const contentByCategory = await Promise.all(
+    settings.categories.map((category: string) =>
+      ctx.db
+        .query("content")
+        .withIndex("by_category", (q: any) => q.eq("category", category))
+        .take(100),
+    ),
+  );
+  const content = shuffle(contentByCategory.flat());
+
+  if (content.length < settings.targetWordsPerRound) {
+    throw new Error(
+      "Not enough content has been seeded for these game settings.",
+    );
+  }
+
+  return content.slice(0, settings.targetWordsPerRound).map((word: any) => ({
+    contentId: word._id,
+    label: word.label,
+    normalizedLabel: word.normalizedLabel,
+    category: word.category,
+    imageUrl: word.imageUrl,
+    source: word.source,
+    sourceId: word.sourceId,
+    solvedByPlayerIds: [],
+  }));
+}
+
+async function createRound(ctx: any, game: any, hintGiverPlayerId: string) {
+  const now = Date.now();
+  const targetWords = await selectTargetWords(ctx, game.settings);
+
+  const roundId = await ctx.db.insert("rounds", {
+    gameId: game._id,
+    lobbyId: game.lobbyId,
+    hintGiverPlayerId,
+    status: "active",
+    targetWords,
+    currentTargetIndex: 0,
+    hintWords: [],
+    submittedHints: [],
+    rerollCount: 0,
+    startedAt: now,
+  });
+
+  await ctx.db.patch(game._id, {
+    currentRoundId: roundId,
+    updatedAt: now,
+  });
+
+  await recordEvent(ctx, {
+    lobbyId: game.lobbyId,
+    gameId: game._id,
+    roundId,
+    playerId: hintGiverPlayerId,
+    type: "round.started",
+    payload: { targetCount: targetWords.length },
+  });
+
+  return roundId;
+}
+
+function toScoreMap(scores: any[]) {
+  return new Map(scores.map((score) => [score.playerId, { ...score }]));
+}
+
+export const getRoom = queryGeneric({
+  args: { lobbyId: v.id("lobbies") },
+  handler: async (ctx, args) => {
+    const lobby = await ctx.db.get(args.lobbyId);
+    if (!lobby) {
+      return null;
+    }
+
+    const players = await getLobbyPlayers(ctx, args.lobbyId);
+    const game = lobby.currentGameId
+      ? await ctx.db.get(lobby.currentGameId)
+      : null;
+    const round = game?.currentRoundId
+      ? await ctx.db.get(game.currentRoundId)
+      : null;
+    const guesses = round
+      ? await ctx.db
+          .query("guesses")
+          .withIndex("by_round", (q) => q.eq("roundId", round._id))
+          .collect()
+      : [];
+
+    return {
+      lobby: {
+        id: lobby._id,
+        code: lobby.code,
+        visibility: lobby.visibility,
+        status: lobby.status,
+        settings: lobby.settings,
+        maxPlayers: lobby.maxPlayers,
+        hostPlayerId: lobby.hostPlayerId,
+      },
+      players,
+      game: game
+        ? {
+            id: game._id,
+            status: game.status,
+            settings: game.settings,
+            scores: game.scores,
+            roundOrder: game.roundOrder,
+          }
+        : null,
+      round: round
+        ? {
+            id: round._id,
+            status: round.status,
+            hintGiverPlayerId: round.hintGiverPlayerId,
+            targetWords: round.targetWords,
+            currentTargetIndex: round.currentTargetIndex,
+            hintWords: round.hintWords,
+            submittedHints: round.submittedHints,
+            rerollCount: round.rerollCount,
+            startedAt: round.startedAt,
+            completedAt: round.completedAt,
+          }
+        : null,
+      guesses,
+    };
+  },
+});
+
+export const start = mutationGeneric({
+  args: {
+    lobbyId: v.id("lobbies"),
+    guestId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const lobby = await ctx.db.get(args.lobbyId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+
+    if (!lobby || !player || lobby.hostPlayerId !== player._id) {
+      throw new Error("Only the host can start the game.");
+    }
+
+    if (lobby.status !== "open") {
+      throw new Error("This lobby has already started.");
+    }
+
+    const players = await getLobbyPlayers(ctx, lobby._id);
+    if (players.some((lobbyPlayer) => !lobbyPlayer.isReady)) {
+      throw new Error("All players must ready up before starting.");
+    }
+
+    const now = Date.now();
+    const settings = makeGameSettings(lobby.settings);
+    const baseOrder = players.map((lobbyPlayer) => lobbyPlayer.id);
+    const roundOrder = Array.from(
+      { length: settings.hintGiverTurnsPerPlayer },
+      () => baseOrder,
+    ).flat();
+
+    const gameId = await ctx.db.insert("games", {
+      lobbyId: lobby._id,
+      settings,
+      status: "in_progress",
+      roundOrder,
+      scores: players.map((lobbyPlayer) => ({
+        playerId: lobbyPlayer.id,
+        totalScore: 0,
+        roundScore: 0,
+      })),
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await ctx.db.patch(lobby._id, {
+      status: "in_progress",
+      currentGameId: gameId,
+      updatedAt: now,
+    });
+
+    const game = await ctx.db.get(gameId);
+    await createRound(ctx, game, roundOrder[0]);
+    await recordEvent(ctx, {
+      lobbyId: lobby._id,
+      gameId,
+      playerId: player._id,
+      type: "game.started",
+      payload: { playerCount: players.length },
+    });
+
+    return { gameId };
+  },
+});
+
+export const rerollTargets = mutationGeneric({
+  args: {
+    roundId: v.id("rounds"),
+    guestId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+    const game = round ? await ctx.db.get(round.gameId) : null;
+
+    if (!round || !game || !player || round.hintGiverPlayerId !== player._id) {
+      throw new Error("Only the hint giver can reroll targets.");
+    }
+
+    if (round.hintWords.length > 0 || round.submittedHints.length > 0) {
+      throw new Error("Targets can only be rerolled before hinting starts.");
+    }
+
+    const nextReroll = round.rerollCount + 1;
+    const cost = getRerollWordCost(nextReroll);
+    const rerollWords = Array.from({ length: cost }, (_, index) => ({
+      id: crypto.randomUUID(),
+      text: cost === 1 ? `reroll ${nextReroll}` : `reroll ${nextReroll}${String.fromCharCode(97 + index)}`,
+      normalizedText:
+        cost === 1
+          ? normalizeWord(`reroll ${nextReroll}`)
+          : normalizeWord(`reroll ${nextReroll}${String.fromCharCode(97 + index)}`),
+      createdAt: Date.now(),
+      cost: 1,
+    }));
+    const targetWords = await selectTargetWords(ctx, game.settings);
+
+    await ctx.db.patch(round._id, {
+      targetWords,
+      rerollCount: nextReroll,
+      hintWords: [...round.hintWords, ...rerollWords],
+    });
+
+    await recordEvent(ctx, {
+      lobbyId: round.lobbyId,
+      gameId: round.gameId,
+      roundId: round._id,
+      playerId: player._id,
+      type: "round.rerolled",
+      payload: { cost },
+    });
+  },
+});
+
+export const addHintWord = mutationGeneric({
+  args: {
+    roundId: v.id("rounds"),
+    guestId: v.string(),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+
+    if (!round || !player || round.hintGiverPlayerId !== player._id) {
+      throw new Error("Only the hint giver can add hint words.");
+    }
+
+    const text = args.text.trim().slice(0, 48);
+    const normalizedText = normalizeWord(text);
+    if (!normalizedText) {
+      throw new Error("Hint word cannot be empty.");
+    }
+
+    if (
+      round.hintWords.some(
+        (word: any) => word.normalizedText === normalizedText,
+      )
+    ) {
+      throw new Error("That hint word has already been used.");
+    }
+
+    if (hintViolatesTargetWords(text, round.targetWords)) {
+      throw new Error("Hint words cannot match a target word or its tokens.");
+    }
+
+    const hintWord = {
+      id: crypto.randomUUID(),
+      text,
+      normalizedText,
+      createdAt: Date.now(),
+      cost: 1,
+    };
+
+    await ctx.db.patch(round._id, {
+      hintWords: [...round.hintWords, hintWord],
+    });
+
+    await recordEvent(ctx, {
+      lobbyId: round.lobbyId,
+      gameId: round.gameId,
+      roundId: round._id,
+      playerId: player._id,
+      type: "hint_word.added",
+      payload: { text },
+    });
+
+    return hintWord;
+  },
+});
+
+export const submitHint = mutationGeneric({
+  args: {
+    roundId: v.id("rounds"),
+    guestId: v.string(),
+    hintWordIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+
+    if (!round || !player || round.hintGiverPlayerId !== player._id) {
+      throw new Error("Only the hint giver can submit hints.");
+    }
+
+    if (args.hintWordIds.length === 0) {
+      throw new Error("Select at least one hint word.");
+    }
+
+    const text = composeHintText(args.hintWordIds, round.hintWords);
+    const submittedHint = {
+      id: crypto.randomUUID(),
+      hintWordIds: args.hintWordIds,
+      text,
+      createdAt: Date.now(),
+      targetIndex: round.currentTargetIndex,
+    };
+
+    await ctx.db.patch(round._id, {
+      submittedHints: [...round.submittedHints, submittedHint],
+    });
+
+    await recordEvent(ctx, {
+      lobbyId: round.lobbyId,
+      gameId: round.gameId,
+      roundId: round._id,
+      playerId: player._id,
+      type: "hint.submitted",
+      payload: { text },
+    });
+
+    return submittedHint;
+  },
+});
+
+export const submitGuess = mutationGeneric({
+  args: {
+    roundId: v.id("rounds"),
+    guestId: v.string(),
+    submittedHintId: v.string(),
+    contentId: v.id("content"),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+    const game = round ? await ctx.db.get(round.gameId) : null;
+    const guessedWord = await ctx.db.get(args.contentId);
+
+    if (!round || !game || !player || !guessedWord) {
+      throw new Error("Unable to submit guess.");
+    }
+
+    if (round.hintGiverPlayerId === player._id) {
+      throw new Error("The hint giver cannot guess.");
+    }
+
+    const submittedHint = round.submittedHints.find(
+      (hint: any) => hint.id === args.submittedHintId,
+    );
+    if (!submittedHint) {
+      throw new Error("Hint not found.");
+    }
+
+    const target = round.targetWords[round.currentTargetIndex];
+    const isCorrect = isGuessCorrect(guessedWord, target);
+    const previousGuessCountForHint = await ctx.db
+      .query("guesses")
+      .withIndex("by_hint_player", (q) =>
+        (q as any)
+          .eq("submittedHintId", args.submittedHintId)
+          .eq("playerId", player._id),
+      )
+      .collect()
+      .then((guesses) =>
+        getPreviousGuessCountForHint(
+          guesses.map((guess: any) => ({
+            playerId: guess.playerId,
+            submittedHintId: guess.submittedHintId,
+          })),
+          player._id,
+          args.submittedHintId,
+        ),
+      );
+
+    const scoredGuess = scoreGuess({
+      isCorrect,
+      previousGuessCountForHint,
+      pointsPerCorrectGuess: game.settings.pointsPerCorrectGuess,
+    });
+
+    await ctx.db.insert("guesses", {
+      roundId: round._id,
+      gameId: round.gameId,
+      lobbyId: round.lobbyId,
+      playerId: player._id,
+      submittedHintId: args.submittedHintId,
+      guessedWord: {
+        contentId: guessedWord._id,
+        label: guessedWord.label,
+        normalizedLabel: guessedWord.normalizedLabel,
+        category: guessedWord.category,
+        imageUrl: guessedWord.imageUrl,
+        source: guessedWord.source,
+        sourceId: guessedWord.sourceId,
+      },
+      targetIndex: round.currentTargetIndex,
+      isCorrect,
+      pointsAwarded: scoredGuess.pointsAwarded,
+      penaltyApplied: scoredGuess.penaltyApplied,
+      createdAt: Date.now(),
+    });
+
+    const scores = toScoreMap(game.scores);
+    const playerScore = scores.get(player._id) ?? {
+      playerId: player._id,
+      totalScore: 0,
+      roundScore: 0,
+    };
+    playerScore.roundScore += scoredGuess.netPoints;
+    scores.set(player._id, playerScore);
+
+    let nextRoundPatch: Record<string, unknown> = {};
+    if (isCorrect) {
+      const targetWords = [...round.targetWords];
+      targetWords[round.currentTargetIndex] = {
+        ...target,
+        solvedByPlayerIds: [...target.solvedByPlayerIds, player._id],
+        solvedAt: Date.now(),
+      };
+
+      const solvedAllTargets =
+        round.currentTargetIndex >= round.targetWords.length - 1;
+
+      nextRoundPatch = {
+        targetWords,
+        currentTargetIndex: solvedAllTargets
+          ? round.currentTargetIndex
+          : round.currentTargetIndex + 1,
+        status: solvedAllTargets ? "complete" : round.status,
+        completedAt: solvedAllTargets ? Date.now() : round.completedAt,
+      };
+
+      if (solvedAllTargets) {
+        const hintGiverScore = calculateHintGiverScore(
+          round.hintWords.length,
+          game.settings,
+        );
+        const hintGiverScoreEntry = scores.get(round.hintGiverPlayerId) ?? {
+          playerId: round.hintGiverPlayerId,
+          totalScore: 0,
+          roundScore: 0,
+        };
+        hintGiverScoreEntry.roundScore += hintGiverScore;
+        scores.set(round.hintGiverPlayerId, hintGiverScoreEntry);
+      }
+    }
+
+    const updatedScores = Array.from(scores.values());
+    await ctx.db.patch(round._id, nextRoundPatch);
+    await ctx.db.patch(game._id, {
+      scores: updatedScores,
+      updatedAt: Date.now(),
+    });
+
+    await recordEvent(ctx, {
+      lobbyId: round.lobbyId,
+      gameId: round.gameId,
+      roundId: round._id,
+      playerId: player._id,
+      type: "guess.submitted",
+      payload: {
+        label: guessedWord.label,
+        isCorrect,
+        netPoints: scoredGuess.netPoints,
+      },
+    });
+
+    return { isCorrect, ...scoredGuess };
+  },
+});
