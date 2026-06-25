@@ -8,7 +8,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GameRoomBoard } from "@/components/game/game-room-board";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
 import { convexApi } from "@/lib/convex-api";
-import { makeGameSettings } from "@/lib/game/rules";
+import {
+  advancedCategories,
+  classicCategories,
+  makeGameSettings,
+} from "@/lib/game/rules";
+import type { GameMode } from "@/lib/game/types";
 
 export default function LobbyPage() {
   const params = useParams<{ code: string }>();
@@ -141,6 +146,62 @@ export default function LobbyPage() {
         settings: makeGameSettings({
           ...lobby.settings,
           hintGiverTurnsPerPlayer: value,
+        }),
+      }),
+    );
+  }
+
+  async function handleScoringWordLimitChange(value: number) {
+    if (!lobby) {
+      return;
+    }
+
+    await runAction(() =>
+      updateSettings({
+        lobbyId: lobby.id,
+        guestId: identity.guestId,
+        visibility: lobby.visibility,
+        settings: makeGameSettings({
+          ...lobby.settings,
+          scoringWordLimit: value,
+        }),
+      }),
+    );
+  }
+
+  async function handleHardWordLimitChange(value: number) {
+    if (!lobby) {
+      return;
+    }
+
+    await runAction(() =>
+      updateSettings({
+        lobbyId: lobby.id,
+        guestId: identity.guestId,
+        visibility: lobby.visibility,
+        settings: makeGameSettings({
+          ...lobby.settings,
+          hardWordLimit: value,
+        }),
+      }),
+    );
+  }
+
+  async function handleModeChange(mode: Extract<GameMode, "classic" | "advanced">) {
+    if (!lobby) {
+      return;
+    }
+
+    await runAction(() =>
+      updateSettings({
+        lobbyId: lobby.id,
+        guestId: identity.guestId,
+        visibility: lobby.visibility,
+        settings: makeGameSettings({
+          ...lobby.settings,
+          mode,
+          categories:
+            mode === "advanced" ? advancedCategories : classicCategories,
         }),
       }),
     );
@@ -342,23 +403,86 @@ export default function LobbyPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-2xl font-black">Game Settings</h2>
-            <p className="mt-2 text-slate-300">
-              Classic mode is wired first. Changing settings resets ready
-              states.
-            </p>
           </div>
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <SettingCard label="Mode" value={lobby.settings.mode} />
+          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              Mode
+            </p>
+            {isHost ? (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {(["classic", "advanced"] as const).map((mode) => (
+                  <button
+                    className={`rounded-xl px-3 py-2 font-black capitalize ${
+                      lobby.settings.mode === mode
+                        ? "bg-yellow-300 text-black"
+                        : "bg-black/30 text-slate-200"
+                    }`}
+                    key={mode}
+                    onClick={() => handleModeChange(mode)}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-xl font-black capitalize">
+                {lobby.settings.mode}
+              </p>
+            )}
+          </div>
           <SettingCard
             label="Targets"
             value={`${lobby.settings.targetWordsPerRound} words`}
           />
-          <SettingCard
-            label="Word limits"
-            value={`${lobby.settings.scoringWordLimit}/${lobby.settings.hardWordLimit}`}
-          />
+          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              Word Limits
+            </p>
+            {isHost ? (
+              <div className="mt-3 grid gap-3">
+                <p className="text-sm font-bold leading-6 text-slate-200">
+                  {lobby.settings.scoringWordLimit} words, 1 point for each
+                  remaining, {lobby.settings.hardWordLimit} maximum words
+                </p>
+                <label className="grid gap-1 text-sm font-bold">
+                  Scoring words
+                  <input
+                    className="rounded-xl bg-black/30 px-3 py-2"
+                    min={1}
+                    max={50}
+                    type="number"
+                    value={lobby.settings.scoringWordLimit}
+                    onChange={(event) =>
+                      handleScoringWordLimitChange(
+                        Number(event.currentTarget.value),
+                      )
+                    }
+                  />
+                </label>
+                <label className="grid gap-1 text-sm font-bold">
+                  Maximum words
+                  <input
+                    className="rounded-xl bg-black/30 px-3 py-2"
+                    min={lobby.settings.scoringWordLimit}
+                    max={50}
+                    type="number"
+                    value={lobby.settings.hardWordLimit}
+                    onChange={(event) =>
+                      handleHardWordLimitChange(Number(event.currentTarget.value))
+                    }
+                  />
+                </label>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-200">
+                {lobby.settings.scoringWordLimit} words, 1 point for each
+                remaining, {lobby.settings.hardWordLimit} maximum words
+              </p>
+            )}
+          </div>
         </div>
 
         {isHost ? (
