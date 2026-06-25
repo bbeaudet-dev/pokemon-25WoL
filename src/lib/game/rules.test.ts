@@ -1,0 +1,86 @@
+import { describe, expect, it } from "vitest";
+import {
+  calculateHintGiverScore,
+  getTotalRerollWordCost,
+  hintViolatesTargetWords,
+  makeGameSettings,
+  normalizeWord,
+  scoreGuess,
+} from "./rules";
+import type { TargetWord } from "./types";
+
+const targets: TargetWord[] = [
+  {
+    id: "poke-ball",
+    label: "Poke Ball",
+    normalizedLabel: "poke ball",
+    category: "item",
+    source: "pokeapi",
+    solvedByPlayerIds: [],
+  },
+  {
+    id: "mr-mime",
+    label: "Mr. Mime",
+    normalizedLabel: "mr mime",
+    category: "pokemon",
+    source: "pokeapi",
+    solvedByPlayerIds: [],
+  },
+];
+
+describe("normalizeWord", () => {
+  it("normalizes casing, punctuation, and whitespace", () => {
+    expect(normalizeWord("  Mr. Mime's   BALL!! ")).toBe("mr mimes ball");
+  });
+});
+
+describe("makeGameSettings", () => {
+  it("keeps the hard word limit at least as high as the scoring limit", () => {
+    expect(
+      makeGameSettings({ scoringWordLimit: 25, hardWordLimit: 20 })
+        .hardWordLimit,
+    ).toBe(25);
+  });
+});
+
+describe("reroll costs", () => {
+  it("uses triangular costs for successive rerolls", () => {
+    expect(getTotalRerollWordCost(1)).toBe(1);
+    expect(getTotalRerollWordCost(2)).toBe(3);
+    expect(getTotalRerollWordCost(3)).toBe(6);
+  });
+});
+
+describe("calculateHintGiverScore", () => {
+  it("awards positive, zero, and negative scores based on words used", () => {
+    const settings = { scoringWordLimit: 25, hardWordLimit: 40 };
+
+    expect(calculateHintGiverScore(5, settings)).toBe(20);
+    expect(calculateHintGiverScore(25, settings)).toBe(0);
+    expect(calculateHintGiverScore(27, settings)).toBe(-2);
+  });
+});
+
+describe("scoreGuess", () => {
+  it("penalizes second and later guesses on the same submitted hint", () => {
+    expect(
+      scoreGuess({
+        isCorrect: true,
+        previousGuessCountForHint: 1,
+        pointsPerCorrectGuess: 1,
+      }),
+    ).toEqual({ penaltyApplied: 1, pointsAwarded: 1, netPoints: 0 });
+  });
+});
+
+describe("hintViolatesTargetWords", () => {
+  it("blocks full target labels and full target tokens", () => {
+    expect(hintViolatesTargetWords("Poke Ball", targets)).toBe(true);
+    expect(hintViolatesTargetWords("ball", targets)).toBe(true);
+    expect(hintViolatesTargetWords("mime", targets)).toBe(true);
+  });
+
+  it("does not block unrelated normalized words", () => {
+    expect(hintViolatesTargetWords("capture", targets)).toBe(false);
+  });
+});
