@@ -278,6 +278,60 @@ export const join = mutationGeneric({
   },
 });
 
+export const leave = mutationGeneric({
+  args: {
+    lobbyId: v.id("lobbies"),
+    guestId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const lobby = await ctx.db.get(args.lobbyId);
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_guestId", (q) => q.eq("guestId", args.guestId))
+      .unique();
+
+    if (!lobby || !player) {
+      return;
+    }
+
+    const membership = await ctx.db
+      .query("lobbyPlayers")
+      .withIndex("by_lobby_player", (q) =>
+        (q as any).eq("lobbyId", args.lobbyId).eq("playerId", player._id),
+      )
+      .unique();
+
+    if (!membership) {
+      return;
+    }
+
+    await ctx.db.delete(membership._id);
+
+    const remaining = await ctx.db
+      .query("lobbyPlayers")
+      .withIndex("by_lobby", (q) => q.eq("lobbyId", args.lobbyId))
+      .collect();
+
+    if (remaining.length === 0 && lobby.status === "open") {
+      await ctx.db.delete(lobby._id);
+    } else if (membership.isHost && remaining.length > 0) {
+      const nextHost = remaining.sort((a, b) => a.joinedAt - b.joinedAt)[0];
+      await ctx.db.patch(nextHost._id, { isHost: true });
+      await ctx.db.patch(lobby._id, {
+        hostPlayerId: nextHost.playerId,
+        updatedAt: Date.now(),
+      });
+    }
+
+    await recordEvent(ctx, {
+      lobbyId: args.lobbyId,
+      playerId: player._id,
+      type: "lobby.left",
+      payload: {},
+    });
+  },
+});
+
 export const setReady = mutationGeneric({
   args: {
     lobbyId: v.id("lobbies"),

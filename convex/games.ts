@@ -2,7 +2,6 @@ import { mutationGeneric, queryGeneric } from "convex/server";
 import { v } from "convex/values";
 import {
   calculateHintGiverScore,
-  composeHintText,
   getPreviousGuessCountForHint,
   getRerollWordCost,
   hintViolatesTargetWords,
@@ -91,7 +90,7 @@ async function createRound(ctx: any, game: any, hintGiverPlayerId: string) {
     gameId: game._id,
     lobbyId: game.lobbyId,
     hintGiverPlayerId,
-    status: "active",
+    status: "setup",
     targetWords,
     currentTargetIndex: 0,
     hintWords: [],
@@ -257,11 +256,11 @@ export const rerollTargets = mutationGeneric({
     const game = round ? await ctx.db.get(round.gameId) : null;
 
     if (!round || !game || !player || round.hintGiverPlayerId !== player._id) {
-      throw new Error("Only the hint giver can reroll targets.");
+      throw new Error("Unable to reroll targets.");
     }
 
-    if (round.hintWords.length > 0 || round.submittedHints.length > 0) {
-      throw new Error("Targets can only be rerolled before hinting starts.");
+    if (round.status !== "setup") {
+      throw new Error("The round has already started.");
     }
 
     const nextReroll = round.rerollCount + 1;
@@ -295,7 +294,32 @@ export const rerollTargets = mutationGeneric({
   },
 });
 
-export const addHintWord = mutationGeneric({
+export const confirmTargets = mutationGeneric({
+  args: {
+    roundId: v.id("rounds"),
+    guestId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+
+    if (!round || !player || round.hintGiverPlayerId !== player._id) {
+      throw new Error("Unable to confirm targets.");
+    }
+
+    await ctx.db.patch(round._id, { status: "active" });
+    await recordEvent(ctx, {
+      lobbyId: round.lobbyId,
+      gameId: round.gameId,
+      roundId: round._id,
+      playerId: player._id,
+      type: "round.targets_confirmed",
+      payload: {},
+    });
+  },
+});
+
+export const submitHintText = mutationGeneric({
   args: {
     roundId: v.id("rounds"),
     guestId: v.string(),
@@ -306,80 +330,76 @@ export const addHintWord = mutationGeneric({
     const player = await getPlayerByGuestId(ctx, args.guestId);
 
     if (!round || !player || round.hintGiverPlayerId !== player._id) {
-      throw new Error("Only the hint giver can add hint words.");
+      throw new Error("Unable to submit hint.");
     }
 
-    const text = args.text.trim().slice(0, 48);
-    const normalizedText = normalizeWord(text);
-    if (!normalizedText) {
-      throw new Error("Hint word cannot be empty.");
+    if (round.status !== "active") {
+      throw new Error("Confirm targets before giving hints.");
     }
 
-    if (
-      round.hintWords.some(
+    const rawWords = args.text
+      .trim()
+      .split(/\s+/)
+      .map((word) => word.trim())
+      .filter(Boolean);
+
+    if (rawWords.length === 0) {
+      throw new Error("Type at least one hint word.");
+    }
+
+    const now = Date.now();
+    const hintWords = [...round.hintWords];
+    const hintWordIds: string[] = [];
+
+    for (const rawWord of rawWords) {
+      const text = rawWord.slice(0, 48);
+      const normalizedText = normalizeWord(text);
+
+      if (!normalizedText) {
+        continue;
+      }
+
+      if (hintViolatesTargetWords(text, round.targetWords)) {
+        throw new Error("Hint words cannot match a target word or its tokens.");
+      }
+
+      const existing = hintWords.find(
         (word: any) => word.normalizedText === normalizedText,
-      )
-    ) {
-      throw new Error("That hint word has already been used.");
+      );
+
+      if (existing) {
+        hintWordIds.push(existing.id);
+        continue;
+      }
+
+      const hintWord = {
+        id: crypto.randomUUID(),
+        text,
+        normalizedText,
+        createdAt: now,
+        cost: 1,
+      };
+      hintWords.push(hintWord);
+      hintWordIds.push(hintWord.id);
     }
 
-    if (hintViolatesTargetWords(text, round.targetWords)) {
-      throw new Error("Hint words cannot match a target word or its tokens.");
+    if (hintWordIds.length === 0) {
+      throw new Error("Type at least one hint word.");
     }
 
-    const hintWord = {
-      id: crypto.randomUUID(),
-      text,
-      normalizedText,
-      createdAt: Date.now(),
-      cost: 1,
-    };
-
-    await ctx.db.patch(round._id, {
-      hintWords: [...round.hintWords, hintWord],
-    });
-
-    await recordEvent(ctx, {
-      lobbyId: round.lobbyId,
-      gameId: round.gameId,
-      roundId: round._id,
-      playerId: player._id,
-      type: "hint_word.added",
-      payload: { text },
-    });
-
-    return hintWord;
-  },
-});
-
-export const submitHint = mutationGeneric({
-  args: {
-    roundId: v.id("rounds"),
-    guestId: v.string(),
-    hintWordIds: v.array(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const round = await ctx.db.get(args.roundId);
-    const player = await getPlayerByGuestId(ctx, args.guestId);
-
-    if (!round || !player || round.hintGiverPlayerId !== player._id) {
-      throw new Error("Only the hint giver can submit hints.");
-    }
-
-    if (args.hintWordIds.length === 0) {
-      throw new Error("Select at least one hint word.");
-    }
-
-    const text = composeHintText(args.hintWordIds, round.hintWords);
     const submittedHint = {
       id: crypto.randomUUID(),
-      hintWordIds: args.hintWordIds,
-      text,
-      createdAt: Date.now(),
+      hintWordIds,
+      text: hintWordIds
+        .map((id) => hintWords.find((word: any) => word.id === id)?.text)
+        .filter((word): word is string => Boolean(word))
+        .join(" "),
+      createdAt: now,
       targetIndex: round.currentTargetIndex,
     };
 
     await ctx.db.patch(round._id, {
+      hintWords,
       submittedHints: [...round.submittedHints, submittedHint],
     });
 
@@ -389,7 +409,7 @@ export const submitHint = mutationGeneric({
       roundId: round._id,
       playerId: player._id,
       type: "hint.submitted",
-      payload: { text },
+      payload: { text: submittedHint.text },
     });
 
     return submittedHint;
@@ -414,7 +434,7 @@ export const submitGuess = mutationGeneric({
     }
 
     if (round.hintGiverPlayerId === player._id) {
-      throw new Error("The hint giver cannot guess.");
+      throw new Error("The hintmaster cannot guess.");
     }
 
     const submittedHint = round.submittedHints.find(

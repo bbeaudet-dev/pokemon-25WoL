@@ -131,18 +131,6 @@ export function hintViolatesTargetWords(
   });
 }
 
-export function composeHintText(
-  hintWordIds: string[],
-  hintWords: { id: string; text: string }[],
-) {
-  const byId = new Map(hintWords.map((word) => [word.id, word.text]));
-
-  return hintWordIds
-    .map((id) => byId.get(id))
-    .filter((word): word is string => Boolean(word))
-    .join(" ");
-}
-
 export function getCurrentTarget(targets: TargetWord[], currentTargetIndex: number) {
   return targets[currentTargetIndex];
 }

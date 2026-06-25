@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Clipboard, Crown, Play, Shield, Users } from "lucide-react";
+import { Check, Clipboard, Crown, LogOut, Play, Users } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GameRoomBoard } from "@/components/game/game-room-board";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
 import { convexApi } from "@/lib/convex-api";
@@ -12,6 +12,7 @@ import { makeGameSettings } from "@/lib/game/rules";
 
 export default function LobbyPage() {
   const params = useParams<{ code: string }>();
+  const router = useRouter();
   const code = params.code.toUpperCase();
   const { identity, updateDisplayName, isReady } = useGuestIdentity();
   const lobby = useQuery(convexApi.lobbies.getByCode, { code });
@@ -20,10 +21,15 @@ export default function LobbyPage() {
     lobby ? ({ lobbyId: lobby.id } as any) : "skip",
   );
   const joinLobby = useMutation(convexApi.lobbies.join);
+  const leaveLobby = useMutation(convexApi.lobbies.leave);
   const setReady = useMutation(convexApi.lobbies.setReady);
   const updateSettings = useMutation(convexApi.lobbies.updateSettings);
   const startGame = useMutation(convexApi.games.start);
   const [error, setError] = useState<string | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
+  const hasAttemptedAutoJoin = useRef(false);
 
   const currentPlayer = useMemo(
     () => lobby?.players.find((player) => player.guestId === identity.guestId),
@@ -34,6 +40,41 @@ export default function LobbyPage() {
     lobby?.players.length && lobby.players.every((player) => player.isReady),
   );
 
+  useEffect(() => {
+    if (
+      !lobby ||
+      currentPlayer ||
+      !isReady ||
+      isJoining ||
+      hasAttemptedAutoJoin.current ||
+      lobby.status !== "open"
+    ) {
+      return;
+    }
+
+    hasAttemptedAutoJoin.current = true;
+    queueMicrotask(() => {
+      setIsJoining(true);
+      joinLobby({
+        code,
+        guestId: identity.guestId,
+        displayName: identity.displayName,
+      })
+        .catch((err) =>
+          setError(err instanceof Error ? err.message : "Unable to join lobby."),
+        )
+        .finally(() => setIsJoining(false));
+    });
+  }, [
+    code,
+    currentPlayer,
+    identity,
+    isJoining,
+    isReady,
+    joinLobby,
+    lobby,
+  ]);
+
   async function runAction(action: () => Promise<unknown>) {
     setError(null);
     try {
@@ -41,16 +82,6 @@ export default function LobbyPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed.");
     }
-  }
-
-  async function handleJoin() {
-    await runAction(() =>
-      joinLobby({
-        code,
-        guestId: identity.guestId,
-        displayName: identity.displayName,
-      }),
-    );
   }
 
   async function handleVisibilityChange(isPrivate: boolean) {
@@ -90,7 +121,23 @@ export default function LobbyPage() {
   }
 
   async function copyInvite() {
-    await navigator.clipboard.writeText(window.location.href);
+    const inviteUrl = `${window.location.origin}/lobby/${code}`;
+    await navigator.clipboard.writeText(inviteUrl);
+    setCopiedInvite(true);
+    window.setTimeout(() => setCopiedInvite(false), 1200);
+  }
+
+  async function handleLeave() {
+    if (!lobby || !currentPlayer) {
+      router.push("/");
+      return;
+    }
+
+    setIsLeaving(true);
+    await runAction(() =>
+      leaveLobby({ lobbyId: lobby.id, guestId: identity.guestId }),
+    );
+    router.push("/");
   }
 
   if (lobby === undefined) {
@@ -118,40 +165,63 @@ export default function LobbyPage() {
         room={room}
         onError={setError}
         error={error}
+        onLeave={handleLeave}
       />
     );
   }
 
   return (
-    <Shell>
+    <Shell onLeave={currentPlayer ? handleLeave : undefined} isLeaving={isLeaving}>
+      {isJoining ? (
+        <div className="mb-5 rounded-2xl border border-yellow-300/30 bg-yellow-300/10 px-4 py-3 font-bold text-yellow-100">
+          Joining lobby...
+        </div>
+      ) : null}
+      {error ? (
+        <div className="mb-5 rounded-2xl border border-red-300/30 bg-red-500/20 px-4 py-3 text-red-100">
+          {error}
+        </div>
+      ) : null}
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <section className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col gap-5">
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
                 Lobby
               </p>
-              <h1 className="mt-2 text-5xl font-black">{lobby.code}</h1>
-              <p className="mt-2 text-slate-300">
-                Share the invite link or code with other trainers.
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <h1 className="text-5xl font-black">{lobby.code}</h1>
+                <button
+                  aria-label="Copy invite link"
+                  className="grid h-11 w-11 place-items-center rounded-full bg-yellow-300 text-black transition hover:bg-yellow-200"
+                  onClick={copyInvite}
+                >
+                  {copiedInvite ? (
+                    <Check className="h-5 w-5" />
+                  ) : (
+                    <Clipboard className="h-5 w-5" />
+                  )}
+                </button>
+                <button
+                  className="relative flex h-11 w-32 items-center rounded-full bg-black/40 p-1 text-sm font-black"
+                  disabled={!isHost}
+                  onClick={() => handleVisibilityChange(lobby.visibility !== "private")}
+                >
+                  <span
+                    className={`absolute top-1 h-9 w-[58px] rounded-full bg-yellow-300 transition ${
+                      lobby.visibility === "public" ? "left-[66px]" : "left-1"
+                    }`}
+                  />
+                  <span className="relative z-10 flex-1 text-center text-black">
+                    Private
+                  </span>
+                  <span className="relative z-10 flex-1 text-center text-white">
+                    Public
+                  </span>
+                </button>
+              </div>
             </div>
-            <button
-              className="rounded-2xl bg-yellow-300 px-4 py-3 font-black text-black"
-              onClick={copyInvite}
-            >
-              <Clipboard className="mr-2 inline h-5 w-5" />
-              Copy Invite
-            </button>
-          </div>
 
-          {error ? (
-            <div className="mt-5 rounded-2xl border border-red-300/30 bg-red-500/20 px-4 py-3 text-red-100">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="mt-6 grid gap-3">
             <label className="grid gap-2 text-sm font-bold text-slate-200">
               Display name
               <input
@@ -162,15 +232,7 @@ export default function LobbyPage() {
               />
             </label>
 
-            {!currentPlayer ? (
-              <button
-                className="rounded-2xl bg-purple-400 px-5 py-4 font-black text-black"
-                disabled={!isReady}
-                onClick={handleJoin}
-              >
-                Join Lobby
-              </button>
-            ) : (
+            {currentPlayer ? (
               <button
                 className="rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black"
                 onClick={() =>
@@ -185,7 +247,7 @@ export default function LobbyPage() {
               >
                 {currentPlayer.isReady ? "Unready" : "Ready Up"}
               </button>
-            )}
+            ) : null}
           </div>
         </section>
 
@@ -258,22 +320,8 @@ export default function LobbyPage() {
 
         {isHost ? (
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <label className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3 font-bold">
-              <span className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-yellow-300" />
-                Private lobby
-              </span>
-              <input
-                checked={lobby.visibility === "private"}
-                type="checkbox"
-                onChange={(event) =>
-                  handleVisibilityChange(event.currentTarget.checked)
-                }
-              />
-            </label>
-
             <label className="grid gap-2 rounded-2xl bg-white/10 px-4 py-3 font-bold">
-              Hint giver turns per player
+              Times each player is Hintmaster
               <input
                 className="rounded-xl bg-black/30 px-3 py-2"
                 min={1}
@@ -292,12 +340,31 @@ export default function LobbyPage() {
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({
+  children,
+  onLeave,
+  isLeaving,
+}: {
+  children: React.ReactNode;
+  onLeave?: () => void;
+  isLeaving?: boolean;
+}) {
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl px-5 py-8">
-      <Link className="mb-6 inline-block text-sm font-bold text-yellow-300" href="/">
-        Back to lobbies
-      </Link>
+      {onLeave ? (
+        <button
+          className="mb-6 inline-flex items-center gap-2 text-sm font-bold text-yellow-300"
+          disabled={isLeaving}
+          onClick={onLeave}
+        >
+          <LogOut className="h-4 w-4" />
+          {isLeaving ? "Leaving..." : "Leave Lobby"}
+        </button>
+      ) : (
+        <Link className="mb-6 inline-block text-sm font-bold text-yellow-300" href="/">
+          Back to lobbies
+        </Link>
+      )}
       {children}
     </main>
   );

@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery } from "convex/react";
 import { Copy, Play, Plus, Users } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { convexApi } from "@/lib/convex-api";
@@ -18,6 +17,7 @@ export default function HomePage() {
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [joiningLobbyCode, setJoiningLobbyCode] = useState<string | null>(null);
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
 
   async function handleCreateLobby() {
@@ -35,8 +35,6 @@ export default function HomePage() {
       router.push(`/lobby/${result.code}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create lobby.");
-    } finally {
-      setIsCreating(false);
     }
   }
 
@@ -46,16 +44,22 @@ export default function HomePage() {
       return;
     }
 
+    await joinByCode(joinCode.trim());
+  }
+
+  async function joinByCode(code: string) {
     setError(null);
+    setJoiningLobbyCode(code.toUpperCase());
     try {
       const result = await joinLobby({
-        code: joinCode.trim(),
+        code,
         guestId: identity.guestId,
         displayName: identity.displayName,
       });
       router.push(`/lobby/${result.code}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to join lobby.");
+      setJoiningLobbyCode(null);
     }
   }
 
@@ -99,6 +103,20 @@ export default function HomePage() {
           </label>
         </div>
       </section>
+
+      {isCreating || joiningLobbyCode ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-5 backdrop-blur-sm">
+          <div className="rounded-[2rem] border border-white/10 bg-slate-950 p-8 text-center shadow-2xl">
+            <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-yellow-300 border-t-transparent" />
+            <p className="text-2xl font-black">
+              {isCreating ? "Creating lobby..." : "Joining lobby..."}
+            </p>
+            <p className="mt-2 text-sm text-slate-300">
+              Syncing with Convex realtime state.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-2xl border border-red-300/30 bg-red-500/20 px-4 py-3 text-red-100">
@@ -147,12 +165,13 @@ export default function HomePage() {
                       <Users className="h-4 w-4 text-yellow-300" />
                       {lobby.playerCount}/{lobby.maxPlayers}
                     </span>
-                    <Link
+                    <button
                       className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-black text-black transition hover:bg-yellow-200"
-                      href={`/lobby/${lobby.code}`}
+                      disabled={joiningLobbyCode === lobby.code}
+                      onClick={() => joinByCode(lobby.code)}
                     >
-                      Join
-                    </Link>
+                      {joiningLobbyCode === lobby.code ? "Joining..." : "Join"}
+                    </button>
                   </div>
                 ))
               )}
@@ -181,12 +200,14 @@ export default function HomePage() {
             <div className="mt-4 flex gap-2">
               <input
                 className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 uppercase text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+                disabled={Boolean(joiningLobbyCode)}
                 value={joinCode}
                 onChange={(event) => setJoinCode(event.target.value)}
                 placeholder="ABC123"
               />
               <button
                 className="rounded-2xl bg-purple-400 px-4 py-3 font-black text-black transition hover:bg-purple-300"
+                disabled={Boolean(joiningLobbyCode)}
                 type="submit"
               >
                 <Play className="h-5 w-5" />

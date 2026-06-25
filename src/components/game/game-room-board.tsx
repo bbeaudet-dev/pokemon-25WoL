@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Crown, RotateCcw, Send, Sparkles } from "lucide-react";
+import { Check, Crown, LogOut, RotateCcw, Send, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -14,6 +14,7 @@ type GameRoomBoardProps = {
   room: GameRoom;
   error: string | null;
   onError: (message: string | null) => void;
+  onLeave: () => void;
 };
 
 export function GameRoomBoard({
@@ -22,12 +23,13 @@ export function GameRoomBoard({
   room,
   error,
   onError,
+  onLeave,
 }: GameRoomBoardProps) {
   const round = room.round;
   const currentPlayer = room.players.find(
     (player) => player.guestId === identity.guestId,
   );
-  const isHintGiver = Boolean(
+  const isHintmaster = Boolean(
     currentPlayer && round?.hintGiverPlayerId === currentPlayer.id,
   );
 
@@ -44,55 +46,43 @@ export function GameRoomBoard({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5 px-5 py-6">
-      <header className="flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/10 p-5 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
-            Lobby {code}
-          </p>
-          <h1 className="text-4xl font-black">Round Board</h1>
-        </div>
-        <div className="flex items-center gap-2 rounded-full bg-black/30 px-4 py-2 font-bold">
-          <Crown className="h-5 w-5 text-yellow-300" />
-          Hint giver:{" "}
-          {room.players.find((player) => player.id === round.hintGiverPlayerId)
-            ?.displayName ?? "Unknown"}
-        </div>
-      </header>
-
+      {round.status === "setup" ? (
+        <TargetConfirmModal
+          isHintmaster={isHintmaster}
+          round={round}
+          guestId={identity.guestId}
+          onError={onError}
+        />
+      ) : null}
       {error ? (
         <div className="rounded-2xl border border-red-300/30 bg-red-500/20 px-4 py-3 text-red-100">
           {error}
         </div>
       ) : null}
 
-      <Scoreboard room={room} />
-
       <section className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="grid gap-5">
-          <HintWordGrid
-            isHintGiver={isHintGiver}
+          <CurrentHint
+            isHintmaster={isHintmaster}
             round={round}
-            settings={room.game.settings}
             guestId={identity.guestId}
             onError={onError}
           />
-          <SubmittedHints
+          <HintWordGrid
             round={round}
-            isHintGiver={isHintGiver}
-            guestId={identity.guestId}
-            onError={onError}
+            settings={room.game.settings}
           />
         </div>
 
         <TargetRail
-          isHintGiver={isHintGiver}
+          isHintmaster={isHintmaster}
           targetWords={round.targetWords}
           currentTargetIndex={round.currentTargetIndex}
           players={room.players}
         />
       </section>
 
-      {!isHintGiver && currentPlayer ? (
+      {!isHintmaster && currentPlayer ? (
         <GuessPanel
           round={round}
           settings={room.game.settings}
@@ -102,35 +92,99 @@ export function GameRoomBoard({
         />
       ) : null}
 
-      <GuessHistory room={room} />
+      <Scoreboard room={room} hintmasterId={round.hintGiverPlayerId} />
+
+      <footer className="flex items-center justify-between text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+        <span>Lobby {code}</span>
+        <button className="flex items-center gap-2 text-yellow-300" onClick={onLeave}>
+          <LogOut className="h-4 w-4" />
+          Leave
+        </button>
+      </footer>
     </main>
   );
 }
 
-function Scoreboard({ room }: { room: GameRoom }) {
+function Scoreboard({
+  room,
+  hintmasterId,
+}: {
+  room: GameRoom;
+  hintmasterId: GameRoom["players"][number]["id"];
+}) {
   const scores = room.game?.scores ?? [];
+  const guessesByPlayer = new Map(
+    room.players.map((player) => [
+      player.id,
+      [...room.guesses]
+        .reverse()
+        .find((guess) => guess.playerId === player.id),
+    ]),
+  );
+  const guessTotals = new Map(
+    room.players.map((player) => {
+      const guesses = room.guesses.filter((guess) => guess.playerId === player.id);
+      return [
+        player.id,
+        {
+          earned: guesses.reduce((sum, guess) => sum + guess.pointsAwarded, 0),
+          penalties: guesses.reduce((sum, guess) => sum + guess.penaltyApplied, 0),
+        },
+      ];
+    }),
+  );
 
   return (
     <section className="grid gap-3 md:grid-cols-4">
       {room.players.map((player, index) => {
         const score = scores.find((entry) => entry.playerId === player.id);
+        const totals = guessTotals.get(player.id) ?? { earned: 0, penalties: 0 };
+        const netRoundScore = score?.roundScore ?? 0;
+        const latestGuess = guessesByPlayer.get(player.id);
+        const roundScoreClass =
+          netRoundScore < 0
+            ? "text-red-600"
+            : netRoundScore === 0
+              ? "text-yellow-600"
+              : "text-green-600";
         return (
-          <div
-            className="clip-score flex items-center gap-4 bg-white px-5 py-4 text-black shadow-lg"
-            key={player.id}
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
-              {player.displayName.slice(0, 1).toUpperCase()}
+          <div className="grid gap-2" key={player.id}>
+            <div className="min-h-12 rounded-2xl bg-black/30 px-4 py-2 text-sm font-bold">
+              {latestGuess ? (
+                <span>
+                  {latestGuess.guessedWord.label}
+                  <span
+                    className={
+                      latestGuess.isCorrect ? "ml-2 text-green-300" : "ml-2 text-slate-400"
+                    }
+                  >
+                    {latestGuess.isCorrect ? "Correct" : "Miss"}
+                  </span>
+                </span>
+              ) : null}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-black">{player.displayName}</p>
-              <p className="text-xs font-bold text-slate-500">P{index + 1}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-black">{score?.totalScore ?? 0}</p>
-              <p className="text-sm font-black text-green-600">
-                {score?.roundScore ? `${score.roundScore > 0 ? "+" : ""}${score.roundScore}` : "+0"}
-              </p>
+            <div className="clip-score flex items-center gap-4 bg-white px-5 py-4 text-black shadow-lg">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
+                {player.displayName.slice(0, 1).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-black">
+                  {player.displayName}
+                  {player.id === hintmasterId ? (
+                    <Crown className="ml-2 inline h-4 w-4 text-yellow-500" />
+                  ) : null}
+                </p>
+                <p className="text-xs font-bold text-slate-500">P{index + 1}</p>
+              </div>
+              <div className="text-right">
+                <p className={`text-sm font-black ${roundScoreClass}`}>
+                  +{totals.earned}
+                  {totals.penalties ? (
+                    <span className="ml-2 text-red-600">-{totals.penalties}</span>
+                  ) : null}
+                </p>
+                <p className="text-2xl font-black">{score?.totalScore ?? 0}</p>
+              </div>
             </div>
           </div>
         );
@@ -139,71 +193,145 @@ function Scoreboard({ room }: { room: GameRoom }) {
   );
 }
 
-function HintWordGrid({
-  isHintGiver,
+function TargetConfirmModal({
+  isHintmaster,
   round,
-  settings,
   guestId,
   onError,
 }: {
-  isHintGiver: boolean;
   round: NonNullable<GameRoom["round"]>;
-  settings: NonNullable<GameRoom["game"]>["settings"];
+  isHintmaster: boolean;
   guestId: string;
   onError: (message: string | null) => void;
 }) {
-  const addHintWord = useMutation(convexApi.games.addHintWord);
   const rerollTargets = useMutation(convexApi.games.rerollTargets);
-  const [hintText, setHintText] = useState("");
+  const confirmTargets = useMutation(convexApi.games.confirmTargets);
 
-  async function handleAddHint(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function run(action: () => Promise<unknown>) {
     onError(null);
     try {
-      await addHintWord({ roundId: round.id, guestId, text: hintText });
-      setHintText("");
+      await action();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Unable to add hint word.");
-    }
-  }
-
-  async function handleReroll() {
-    onError(null);
-    try {
-      await rerollTargets({ roundId: round.id, guestId });
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Unable to reroll.");
+      onError(err instanceof Error ? err.message : "Action failed.");
     }
   }
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-5">
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-black">Hint Words</h2>
-          <p className="text-sm text-slate-400">
-            {round.hintWords.length}/{settings.hardWordLimit} used. Scoring
-            crosses zero after {settings.scoringWordLimit}.
-          </p>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-5 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950 p-6 shadow-2xl">
+        <p className="text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
+          {isHintmaster ? "Confirm your targets" : "Targets are being confirmed"}
+        </p>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          {round.targetWords.map((target, index) => (
+            <div className="clip-score bg-white px-4 py-3 font-black text-black" key={target.contentId}>
+              <span className="mr-3 rounded bg-yellow-200 px-2 py-1 text-xs">
+                {index + 1}
+              </span>
+              {isHintmaster ? target.label : "Hidden"}
+            </div>
+          ))}
         </div>
-        {isHintGiver ? (
-          <button
-            className="rounded-2xl bg-purple-400 px-4 py-3 font-black text-black disabled:opacity-50"
-            disabled={round.hintWords.length > 0 || round.submittedHints.length > 0}
-            onClick={handleReroll}
-          >
-            <RotateCcw className="mr-2 inline h-5 w-5" />
-            Reroll
-          </button>
+        {isHintmaster ? (
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              className="rounded-2xl bg-purple-400 px-5 py-3 font-black text-black"
+              onClick={() => run(() => rerollTargets({ roundId: round.id, guestId }))}
+            >
+              <RotateCcw className="mr-2 inline h-5 w-5" />
+              Reroll
+            </button>
+            <button
+              className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black"
+              onClick={() => run(() => confirmTargets({ roundId: round.id, guestId }))}
+            >
+              <Check className="mr-2 inline h-5 w-5" />
+              Confirm
+            </button>
+          </div>
+        ) : (
+          <p className="mt-5 text-slate-300">Waiting for the hintmaster...</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CurrentHint({
+  isHintmaster,
+  round,
+  guestId,
+  onError,
+}: {
+  isHintmaster: boolean;
+  round: NonNullable<GameRoom["round"]>;
+  guestId: string;
+  onError: (message: string | null) => void;
+}) {
+  const submitHintText = useMutation(convexApi.games.submitHintText);
+  const [text, setText] = useState("");
+  const latestHint = round.submittedHints.at(-1);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!text.trim()) {
+      return;
+    }
+
+    onError(null);
+    try {
+      await submitHintText({ roundId: round.id, guestId, text });
+      setText("");
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to submit hint.");
+    }
+  }
+
+  return (
+    <section className="rounded-[2rem] border border-white/10 bg-white/10 p-4">
+      <div className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-black/30 px-4 py-3">
+        <p className="min-w-0 flex-1 truncate text-2xl font-black">
+          {latestHint?.text ?? "No hint yet"}
+        </p>
+        {latestHint ? (
+          <span className="rounded-full bg-yellow-300 px-3 py-1 text-xs font-black text-black">
+            New guess
+          </span>
         ) : null}
       </div>
+      {isHintmaster ? (
+        <form className="mt-3 flex gap-2" onSubmit={submit}>
+          <input
+            className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+            disabled={round.status !== "active"}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="Type hint words, then press Enter"
+          />
+          <button className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black">
+            <Send className="h-5 w-5" />
+          </button>
+        </form>
+      ) : null}
+    </section>
+  );
+}
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5">
+function HintWordGrid({
+  round,
+  settings,
+}: {
+  round: NonNullable<GameRoom["round"]>;
+  settings: NonNullable<GameRoom["game"]>["settings"];
+}) {
+  return (
+    <section className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-4">
+      <div className="grid grid-flow-col grid-rows-10 gap-1.5 overflow-x-auto">
         {Array.from({ length: settings.hardWordLimit }, (_, index) => {
           const word = round.hintWords[index];
           return (
             <div
-              className={`clip-tag min-h-12 px-4 py-3 text-center text-sm font-black text-black ${
+              className={`clip-tag flex min-h-9 min-w-40 items-center gap-2 px-3 py-2 text-left text-xs font-black text-black ${
                 index < 10
                   ? "bg-green-100"
                   : index < 20
@@ -214,143 +342,35 @@ function HintWordGrid({
               }`}
               key={index}
             >
-              <span className="mr-2 rounded bg-yellow-300 px-2 text-black">
+              <span className="rounded bg-yellow-200/70 px-1.5 py-0.5 text-[10px] text-black">
                 {index + 1}
               </span>
-              {word?.text ?? ""}
+              <span className="truncate">{word?.text ?? ""}</span>
             </div>
           );
         })}
-      </div>
-
-      {isHintGiver ? (
-        <form className="mt-5 flex gap-2" onSubmit={handleAddHint}>
-          <input
-            className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-            value={hintText}
-            onChange={(event) => setHintText(event.target.value)}
-            placeholder="Add one hint word"
-          />
-          <button className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black">
-            Add
-          </button>
-        </form>
-      ) : null}
-    </section>
-  );
-}
-
-function SubmittedHints({
-  round,
-  isHintGiver,
-  guestId,
-  onError,
-}: {
-  round: NonNullable<GameRoom["round"]>;
-  isHintGiver: boolean;
-  guestId: string;
-  onError: (message: string | null) => void;
-}) {
-  const submitHint = useMutation(convexApi.games.submitHint);
-  const [selectedHintWordIds, setSelectedHintWordIds] = useState<string[]>([]);
-
-  function toggleHintWord(id: string) {
-    setSelectedHintWordIds((current) =>
-      current.includes(id)
-        ? current.filter((hintWordId) => hintWordId !== id)
-        : [...current, id],
-    );
-  }
-
-  async function handleSubmitHint() {
-    onError(null);
-    try {
-      await submitHint({
-        roundId: round.id,
-        guestId,
-        hintWordIds: selectedHintWordIds,
-      });
-      setSelectedHintWordIds([]);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Unable to submit hint.");
-    }
-  }
-
-  return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/10 p-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-black">Submitted Hints</h2>
-          <p className="text-sm text-slate-300">
-            Combine any used words, including repeats in later turns.
-          </p>
-        </div>
-        {isHintGiver ? (
-          <button
-            className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black disabled:opacity-50"
-            disabled={selectedHintWordIds.length === 0}
-            onClick={handleSubmitHint}
-          >
-            <Send className="mr-2 inline h-5 w-5" />
-            Submit Hint
-          </button>
-        ) : null}
-      </div>
-
-      {isHintGiver ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {round.hintWords.map((word) => (
-            <button
-              className={`rounded-full px-4 py-2 text-sm font-black ${
-                selectedHintWordIds.includes(word.id)
-                  ? "bg-yellow-300 text-black"
-                  : "bg-black/40 text-white"
-              }`}
-              key={word.id}
-              onClick={() => toggleHintWord(word.id)}
-            >
-              {word.text}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="mt-4 grid gap-3">
-        {round.submittedHints.length === 0 ? (
-          <p className="text-slate-300">No submitted hints yet.</p>
-        ) : (
-          round.submittedHints.map((hint) => (
-            <div className="rounded-2xl bg-black/30 px-4 py-3" key={hint.id}>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                Target {hint.targetIndex + 1}
-              </p>
-              <p className="mt-1 text-xl font-black">{hint.text}</p>
-            </div>
-          ))
-        )}
       </div>
     </section>
   );
 }
 
 function TargetRail({
-  isHintGiver,
+  isHintmaster,
   targetWords,
   currentTargetIndex,
   players,
 }: {
-  isHintGiver: boolean;
+  isHintmaster: boolean;
   targetWords: NonNullable<GameRoom["round"]>["targetWords"];
   currentTargetIndex: number;
   players: GameRoom["players"];
 }) {
   return (
     <aside className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-5">
-      <h2 className="text-2xl font-black">Targets</h2>
-      <div className="mt-4 grid gap-3">
+      <div className="grid gap-3">
         {targetWords.map((target, index) => {
           const solved = target.solvedByPlayerIds.length > 0;
-          const visible = isHintGiver || solved || index === currentTargetIndex;
+          const visible = isHintmaster || solved;
           return (
             <div
               className={`clip-score flex items-center gap-3 px-4 py-3 font-black text-black ${
@@ -362,7 +382,9 @@ function TargetRail({
               }`}
               key={`${target.contentId}-${index}`}
             >
-              <span>{index + 1}</span>
+              <span className="rounded bg-yellow-200 px-2 py-1 text-xs">
+                {index + 1}
+              </span>
               <span className="min-w-0 flex-1 truncate">
                 {visible ? target.label : "Hidden"}
               </span>
@@ -400,11 +422,17 @@ function GuessPanel({
 }) {
   const submitGuess = useMutation(convexApi.games.submitGuess);
   const [query, setQuery] = useState("");
-  const results = useQuery(convexApi.content.search, {
-    query,
-    categories: settings.categories,
-    limit: 8,
-  });
+  const trimmedQuery = query.trim();
+  const results = useQuery(
+    convexApi.content.search,
+    trimmedQuery
+      ? {
+          query: trimmedQuery,
+          categories: settings.categories,
+          limit: 8,
+        }
+      : "skip",
+  );
 
   async function guess(contentId: Id<"content">) {
     if (!latestHintId) {
@@ -428,17 +456,13 @@ function GuessPanel({
 
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/10 p-5">
-      <h2 className="text-2xl font-black">Submit a Guess</h2>
-      <p className="mt-1 text-sm text-slate-300">
-        Multiple guesses on the same hint cost a point after your first try.
-      </p>
       <input
-        className="mt-4 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+        className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder="Search Pokemon, items, towns..."
       />
-      <div className="mt-3 grid gap-2 md:grid-cols-4">
+      <div className="mt-3 grid min-h-0 gap-2 md:grid-cols-4">
         {(results ?? []).map((result) => (
           <button
             className="flex items-center gap-3 rounded-2xl bg-black/40 px-3 py-2 text-left font-bold transition hover:bg-yellow-300 hover:text-black"
@@ -463,41 +487,6 @@ function GuessPanel({
             </span>
           </button>
         ))}
-      </div>
-    </section>
-  );
-}
-
-function GuessHistory({ room }: { room: GameRoom }) {
-  const byPlayerId = new Map(
-    room.players.map((player) => [player.id, player.displayName]),
-  );
-
-  return (
-    <section className="rounded-[2rem] border border-white/10 bg-black/30 p-5">
-      <h2 className="text-2xl font-black">Live Guesses</h2>
-      <div className="mt-4 grid gap-2">
-        {room.guesses.length === 0 ? (
-          <p className="text-slate-300">No guesses yet.</p>
-        ) : (
-          [...room.guesses].reverse().map((guess) => (
-            <div
-              className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3"
-              key={guess._id}
-            >
-              <span>
-                <strong>{byPlayerId.get(guess.playerId) ?? "Player"}</strong>{" "}
-                guessed <strong>{guess.guessedWord.label}</strong>
-              </span>
-              <span
-                className={guess.isCorrect ? "text-green-300" : "text-slate-300"}
-              >
-                {guess.isCorrect ? "Correct" : "Miss"}
-                {guess.penaltyApplied ? `, -${guess.penaltyApplied}` : ""}
-              </span>
-            </div>
-          ))
-        )}
       </div>
     </section>
   );
