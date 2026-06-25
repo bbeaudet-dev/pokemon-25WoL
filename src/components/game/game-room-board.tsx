@@ -7,6 +7,7 @@ import { FormEvent, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { GuestIdentity } from "@/lib/guest";
 import { convexApi, type GameRoom } from "@/lib/convex-api";
+import type { ContentCategory } from "@/lib/game/types";
 
 type GameRoomBoardProps = {
   code: string;
@@ -182,6 +183,7 @@ function Scoreboard({
               <div className="absolute left-3 top-0 z-10 max-w-[calc(100%-1.5rem)] rounded-2xl bg-black/80 px-2 py-1 text-xs font-bold text-white shadow-xl">
                 <div className="flex items-center gap-2">
                   <WordImage
+                    category={latestGuess.guessedWord.category}
                     imageUrl={latestGuess.guessedWord.imageUrl}
                     label={latestGuess.guessedWord.label}
                     size="sm"
@@ -271,7 +273,11 @@ function TargetConfirmModal({
                 {index + 1}
               </span>
               {isHintmaster ? (
-                <WordImage imageUrl={target.imageUrl} label={target.label} />
+                <WordImage
+                  category={target.category}
+                  imageUrl={target.imageUrl}
+                  label={target.label}
+                />
               ) : null}
               {isHintmaster ? target.label : "Hidden"}
             </div>
@@ -441,7 +447,11 @@ function TargetRail({
                 {index + 1}
               </span>
               {visible ? (
-                <WordImage imageUrl={target.imageUrl} label={target.label} />
+                <WordImage
+                  category={target.category}
+                  imageUrl={target.imageUrl}
+                  label={target.label}
+                />
               ) : null}
               <span className="min-w-0 flex-1 truncate">
                 {visible ? target.label : "Hidden"}
@@ -527,11 +537,11 @@ function GuessPanel({
             key={result.id}
             onClick={() => guess(result.id)}
           >
-            {result.imageUrl ? (
-              <WordImage imageUrl={result.imageUrl} label={result.label} />
-            ) : (
-              <Sparkles className="h-8 w-8 text-yellow-300" />
-            )}
+            <WordImage
+              category={result.category}
+              imageUrl={result.imageUrl}
+              label={result.label}
+            />
             <span>
               {result.label}
               <span className="block text-xs capitalize opacity-70">
@@ -545,18 +555,29 @@ function GuessPanel({
   );
 }
 
+const categoryFallbackImages: Partial<Record<ContentCategory, string>> = {
+  ability: "/content-fallbacks/ability.png",
+  game: "/content-fallbacks/game.png",
+  move: "/content-fallbacks/move.png",
+  region: "/content-fallbacks/region.jpg",
+  town: "/content-fallbacks/town.webp",
+};
+
 function WordImage({
+  category,
   imageUrl,
   label,
   size = "md",
 }: {
+  category?: ContentCategory;
   imageUrl?: string;
   label: string;
   size?: "sm" | "md";
 }) {
   const sizeClass = size === "sm" ? "h-8 w-8" : "h-10 w-10";
+  const displayImageUrl = imageUrl ?? (category && categoryFallbackImages[category]);
 
-  if (!imageUrl) {
+  if (!displayImageUrl) {
     return (
       <span
         aria-hidden="true"
@@ -572,7 +593,7 @@ function WordImage({
     <img
       alt={label}
       className={`${sizeClass} shrink-0 rounded-full bg-white object-contain`}
-      src={imageUrl}
+      src={displayImageUrl}
     />
   );
 }
