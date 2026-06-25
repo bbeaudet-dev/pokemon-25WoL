@@ -1,0 +1,10 @@
+.DS_Store
+.env
+.env*.local
+.next
+.turbo
+node_modules
+dist
+coverage
+*.tsbuildinfo
+convex/_generated
