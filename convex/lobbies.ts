@@ -369,6 +369,29 @@ export const setReady = mutationGeneric({
   },
 });
 
+export const updateDisplayName = mutationGeneric({
+  args: {
+    guestId: v.string(),
+    displayName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_guestId", (q) => q.eq("guestId", args.guestId))
+      .unique();
+
+    if (!player) {
+      throw new Error("Player not found.");
+    }
+
+    const displayName = args.displayName.trim().slice(0, 24) || "Guest";
+    await ctx.db.patch(player._id, {
+      displayName,
+      lastSeenAt: Date.now(),
+    });
+  },
+});
+
 export const updateSettings = mutationGeneric({
   args: {
     lobbyId: v.id("lobbies"),

@@ -46,7 +46,7 @@ function createDisplayName() {
     nameAdjectives[Math.floor(Math.random() * nameAdjectives.length)];
   const pokemon = namePokemon[Math.floor(Math.random() * namePokemon.length)];
 
-  return `${adjective} ${pokemon}`;
+  return `${adjective}${pokemon}`;
 }
 
 export function loadGuestIdentity(): GuestIdentity {

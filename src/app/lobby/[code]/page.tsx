@@ -23,12 +23,18 @@ export default function LobbyPage() {
   const joinLobby = useMutation(convexApi.lobbies.join);
   const leaveLobby = useMutation(convexApi.lobbies.leave);
   const setReady = useMutation(convexApi.lobbies.setReady);
+  const updateDisplayNameMutation = useMutation(
+    convexApi.lobbies.updateDisplayName,
+  );
   const updateSettings = useMutation(convexApi.lobbies.updateSettings);
   const startGame = useMutation(convexApi.games.start);
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
+  const [draftDisplayName, setDraftDisplayName] = useState(
+    identity.displayName,
+  );
   const hasAttemptedAutoJoin = useRef(false);
 
   const currentPlayer = useMemo(
@@ -46,6 +52,7 @@ export default function LobbyPage() {
       currentPlayer ||
       !isReady ||
       isJoining ||
+      isLeaving ||
       hasAttemptedAutoJoin.current ||
       lobby.status !== "open"
     ) {
@@ -73,7 +80,16 @@ export default function LobbyPage() {
     isReady,
     joinLobby,
     lobby,
+    isLeaving,
   ]);
+
+  useEffect(() => {
+    const nextDisplayName = currentPlayer?.displayName ?? identity.displayName;
+
+    queueMicrotask(() => {
+      setDraftDisplayName(nextDisplayName);
+    });
+  }, [currentPlayer?.displayName, identity.displayName]);
 
   async function runAction(action: () => Promise<unknown>) {
     setError(null);
@@ -100,6 +116,16 @@ export default function LobbyPage() {
         }),
       }),
     );
+  }
+
+  async function handleDisplayNameSave() {
+    await runAction(async () => {
+      await updateDisplayNameMutation({
+        guestId: identity.guestId,
+        displayName: draftDisplayName,
+      });
+      updateDisplayName(draftDisplayName);
+    });
   }
 
   async function handleTurnsChange(value: number) {
@@ -134,6 +160,7 @@ export default function LobbyPage() {
     }
 
     setIsLeaving(true);
+    hasAttemptedAutoJoin.current = true;
     await runAction(() =>
       leaveLobby({ lobbyId: lobby.id, guestId: identity.guestId }),
     );
@@ -202,51 +229,53 @@ export default function LobbyPage() {
                     <Clipboard className="h-5 w-5" />
                   )}
                 </button>
-                <button
-                  className="relative flex h-11 w-32 items-center rounded-full bg-black/40 p-1 text-sm font-black"
-                  disabled={!isHost}
-                  onClick={() => handleVisibilityChange(lobby.visibility !== "private")}
-                >
-                  <span
-                    className={`absolute top-1 h-9 w-[58px] rounded-full bg-yellow-300 transition ${
-                      lobby.visibility === "public" ? "left-[66px]" : "left-1"
-                    }`}
+                {isHost ? (
+                  <VisibilityToggle
+                    isPrivate={lobby.visibility === "private"}
+                    onChange={handleVisibilityChange}
                   />
-                  <span className="relative z-10 flex-1 text-center text-black">
-                    Private
+                ) : (
+                  <span className="rounded-full bg-black/40 px-4 py-2 text-sm font-black capitalize text-slate-200">
+                    {lobby.visibility}
                   </span>
-                  <span className="relative z-10 flex-1 text-center text-white">
-                    Public
-                  </span>
-                </button>
+                )}
               </div>
             </div>
 
-            <label className="grid gap-2 text-sm font-bold text-slate-200">
-              Display name
-              <input
-                className="rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-                value={identity.displayName}
-                maxLength={24}
-                onChange={(event) => updateDisplayName(event.target.value)}
-              />
-            </label>
-
             {currentPlayer ? (
-              <button
-                className="rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black"
-                onClick={() =>
-                  runAction(() =>
-                    setReady({
-                      lobbyId: lobby.id,
-                      guestId: identity.guestId,
-                      isReady: !currentPlayer.isReady,
-                    }),
-                  )
-                }
-              >
-                {currentPlayer.isReady ? "Unready" : "Ready Up"}
-              </button>
+              <div className={`grid gap-3 ${isHost ? "sm:grid-cols-2" : ""}`}>
+                <button
+                  className="rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black"
+                  onClick={() =>
+                    runAction(() =>
+                      setReady({
+                        lobbyId: lobby.id,
+                        guestId: identity.guestId,
+                        isReady: !currentPlayer.isReady,
+                      }),
+                    )
+                  }
+                >
+                  {currentPlayer.isReady ? "Unready" : "Ready Up"}
+                </button>
+                {isHost ? (
+                  <button
+                    className="rounded-2xl bg-green-300 px-5 py-4 font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!allReady}
+                    onClick={() =>
+                      runAction(() =>
+                        startGame({
+                          lobbyId: lobby.id,
+                          guestId: identity.guestId,
+                        }),
+                      )
+                    }
+                  >
+                    <Play className="mr-2 inline h-5 w-5" />
+                    Start Game
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </section>
@@ -257,26 +286,54 @@ export default function LobbyPage() {
             <h2 className="text-2xl font-black">Players</h2>
           </div>
           <div className="mt-5 grid gap-3">
-            {lobby.players.map((player) => (
+            {lobby.players.map((player) => {
+              const isCurrentPlayer = player.guestId === identity.guestId;
+              const canSaveName =
+                isCurrentPlayer &&
+                draftDisplayName.trim() &&
+                draftDisplayName.trim() !== currentPlayer?.displayName;
+
+              return (
               <div
                 className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3"
                 key={player.id}
               >
-                <span className="flex items-center gap-2 font-bold">
+                <span className="flex min-w-0 flex-1 items-center gap-2 font-bold">
                   {player.isHost ? (
                     <Crown className="h-4 w-4 text-yellow-300" />
                   ) : null}
-                  {player.displayName}
+                  {isCurrentPlayer ? (
+                    <input
+                      className="min-w-0 flex-1 rounded-xl bg-black/30 px-3 py-2 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+                      maxLength={24}
+                      value={draftDisplayName}
+                      onChange={(event) =>
+                        setDraftDisplayName(event.currentTarget.value)
+                      }
+                    />
+                  ) : (
+                    player.displayName
+                  )}
                 </span>
-                <span
-                  className={
-                    player.isReady ? "text-green-300" : "text-slate-400"
-                  }
-                >
-                  {player.isReady ? "Ready" : "Not ready"}
-                </span>
+                {canSaveName ? (
+                  <button
+                    className="ml-3 rounded-xl bg-yellow-300 px-3 py-2 text-sm font-black text-black"
+                    onClick={handleDisplayNameSave}
+                  >
+                    Save
+                  </button>
+                ) : (
+                  <span
+                    className={
+                      player.isReady ? "ml-3 text-green-300" : "ml-3 text-slate-400"
+                    }
+                  >
+                    {player.isReady ? "Ready" : "Not ready"}
+                  </span>
+                )}
               </div>
-            ))}
+            );
+            })}
           </div>
         </aside>
       </div>
@@ -290,20 +347,6 @@ export default function LobbyPage() {
               states.
             </p>
           </div>
-          {isHost ? (
-            <button
-              className="rounded-2xl bg-green-300 px-5 py-4 font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!allReady}
-              onClick={() =>
-                runAction(() =>
-                  startGame({ lobbyId: lobby.id, guestId: identity.guestId }),
-                )
-              }
-            >
-              <Play className="mr-2 inline h-5 w-5" />
-              Start Game
-            </button>
-          ) : null}
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -367,6 +410,35 @@ function Shell({
       )}
       {children}
     </main>
+  );
+}
+
+function VisibilityToggle({
+  isPrivate,
+  onChange,
+}: {
+  isPrivate: boolean;
+  onChange: (isPrivate: boolean) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-full bg-black/40 p-1">
+      <button
+        className={`h-10 min-w-24 rounded-full px-4 text-sm font-black transition ${
+          isPrivate ? "bg-yellow-300 text-black" : "text-slate-300"
+        }`}
+        onClick={() => onChange(true)}
+      >
+        Private
+      </button>
+      <button
+        className={`h-10 min-w-24 rounded-full px-4 text-sm font-black transition ${
+          !isPrivate ? "bg-yellow-300 text-black" : "text-slate-300"
+        }`}
+        onClick={() => onChange(false)}
+      >
+        Public
+      </button>
+    </div>
   );
 }
 

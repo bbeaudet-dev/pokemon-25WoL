@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Copy, Play, Plus, Users } from "lucide-react";
+import { Play, Plus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { convexApi } from "@/lib/convex-api";
@@ -13,12 +13,10 @@ export default function HomePage() {
   const lobbies = useQuery(convexApi.lobbies.listOpen, {});
   const createLobby = useMutation(convexApi.lobbies.create);
   const joinLobby = useMutation(convexApi.lobbies.join);
-  const seedInitialContent = useMutation(convexApi.content.seedInitial);
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [joiningLobbyCode, setJoiningLobbyCode] = useState<string | null>(null);
-  const [seedMessage, setSeedMessage] = useState<string | null>(null);
 
   async function handleCreateLobby() {
     if (!isReady) {
@@ -60,17 +58,6 @@ export default function HomePage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to join lobby.");
       setJoiningLobbyCode(null);
-    }
-  }
-
-  async function handleSeedContent() {
-    setError(null);
-    setSeedMessage(null);
-    try {
-      const result = await seedInitialContent({});
-      setSeedMessage(`Seeded ${result.count} starter words.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to seed content.");
     }
   }
 
@@ -121,12 +108,6 @@ export default function HomePage() {
       {error ? (
         <div className="rounded-2xl border border-red-300/30 bg-red-500/20 px-4 py-3 text-red-100">
           {error}
-        </div>
-      ) : null}
-
-      {seedMessage ? (
-        <div className="rounded-2xl border border-green-300/30 bg-green-500/20 px-4 py-3 text-green-100">
-          {seedMessage}
         </div>
       ) : null}
 
@@ -215,17 +196,6 @@ export default function HomePage() {
             </div>
           </form>
 
-          <div className="rounded-[2rem] border border-white/10 bg-black/30 p-5 text-sm text-slate-300">
-            <Copy className="mb-3 h-5 w-5 text-yellow-300" />
-            Lobby invite links are already shaped as shareable URLs. Clipboard
-            sharing is wired in the lobby screen.
-            <button
-              className="mt-4 block rounded-xl bg-white/10 px-4 py-2 font-bold text-white transition hover:bg-white/20"
-              onClick={handleSeedContent}
-            >
-              Seed starter content
-            </button>
-          </div>
         </aside>
       </section>
     </main>

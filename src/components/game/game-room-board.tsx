@@ -1,9 +1,9 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Check, Crown, LogOut, RotateCcw, Send, Sparkles } from "lucide-react";
+import { Check, LogOut, RotateCcw, Send, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { GuestIdentity } from "@/lib/guest";
 import { convexApi, type GameRoom } from "@/lib/convex-api";
@@ -32,6 +32,10 @@ export function GameRoomBoard({
   const isHintmaster = Boolean(
     currentPlayer && round?.hintGiverPlayerId === currentPlayer.id,
   );
+  const hintmasterName =
+    room.players.find((player) => player.id === round?.hintGiverPlayerId)
+      ?.displayName ?? "Hintmaster";
+  const latestHintId = round?.submittedHints.at(-1)?.id;
 
   if (!round || !room.game) {
     return (
@@ -45,7 +49,7 @@ export function GameRoomBoard({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5 px-5 py-6">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5 px-5 pb-12 pt-5">
       {round.status === "setup" ? (
         <TargetConfirmModal
           isHintmaster={isHintmaster}
@@ -65,9 +69,19 @@ export function GameRoomBoard({
           <CurrentHint
             isHintmaster={isHintmaster}
             round={round}
+            hintmasterName={hintmasterName}
             guestId={identity.guestId}
             onError={onError}
           />
+          {!isHintmaster && currentPlayer ? (
+            <GuessPanel
+              round={round}
+              settings={room.game.settings}
+              guestId={identity.guestId}
+              latestHintId={latestHintId}
+              onError={onError}
+            />
+          ) : null}
           <HintWordGrid
             round={round}
             settings={room.game.settings}
@@ -82,19 +96,13 @@ export function GameRoomBoard({
         />
       </section>
 
-      {!isHintmaster && currentPlayer ? (
-        <GuessPanel
-          round={round}
-          settings={room.game.settings}
-          guestId={identity.guestId}
-          latestHintId={round.submittedHints.at(-1)?.id}
-          onError={onError}
-        />
-      ) : null}
+      <Scoreboard
+        room={room}
+        hintmasterId={round.hintGiverPlayerId}
+        latestHintId={latestHintId}
+      />
 
-      <Scoreboard room={room} hintmasterId={round.hintGiverPlayerId} />
-
-      <footer className="flex items-center justify-between text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+      <footer className="mb-6 flex items-center justify-between px-2 text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
         <span>Lobby {code}</span>
         <button className="flex items-center gap-2 text-yellow-300" onClick={onLeave}>
           <LogOut className="h-4 w-4" />
@@ -108,9 +116,11 @@ export function GameRoomBoard({
 function Scoreboard({
   room,
   hintmasterId,
+  latestHintId,
 }: {
   room: GameRoom;
   hintmasterId: GameRoom["players"][number]["id"];
+  latestHintId?: string;
 }) {
   const scores = room.game?.scores ?? [];
   const guessesByPlayer = new Map(
@@ -118,7 +128,11 @@ function Scoreboard({
       player.id,
       [...room.guesses]
         .reverse()
-        .find((guess) => guess.playerId === player.id),
+        .find(
+          (guess) =>
+            guess.playerId === player.id &&
+            (!latestHintId || guess.submittedHintId === latestHintId),
+        ),
     ]),
   );
   const guessTotals = new Map(
@@ -135,8 +149,8 @@ function Scoreboard({
   );
 
   return (
-    <section className="grid gap-3 md:grid-cols-4">
-      {room.players.map((player, index) => {
+    <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {room.players.map((player) => {
         const score = scores.find((entry) => entry.playerId === player.id);
         const totals = guessTotals.get(player.id) ?? { earned: 0, penalties: 0 };
         const netRoundScore = score?.roundScore ?? 0;
@@ -163,18 +177,19 @@ function Scoreboard({
                 </span>
               ) : null}
             </div>
-            <div className="clip-score flex items-center gap-4 bg-white px-5 py-4 text-black shadow-lg">
+            <div className="clip-score relative flex min-h-20 items-center gap-3 bg-white px-4 py-3 pt-5 text-black shadow-lg">
+              {player.id === hintmasterId ? (
+                <div className="absolute left-6 right-8 top-0 rounded-b-xl bg-yellow-300 px-3 py-1 text-center text-[10px] font-black uppercase tracking-widest text-black">
+                  Hintmaster
+                </div>
+              ) : null}
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
                 {player.displayName.slice(0, 1).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-black">
                   {player.displayName}
-                  {player.id === hintmasterId ? (
-                    <Crown className="ml-2 inline h-4 w-4 text-yellow-500" />
-                  ) : null}
                 </p>
-                <p className="text-xs font-bold text-slate-500">P{index + 1}</p>
               </div>
               <div className="text-right">
                 <p className={`text-sm font-black ${roundScoreClass}`}>
@@ -260,11 +275,13 @@ function TargetConfirmModal({
 function CurrentHint({
   isHintmaster,
   round,
+  hintmasterName,
   guestId,
   onError,
 }: {
   isHintmaster: boolean;
   round: NonNullable<GameRoom["round"]>;
+  hintmasterName: string;
   guestId: string;
   onError: (message: string | null) => void;
 }) {
@@ -290,14 +307,18 @@ function CurrentHint({
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/10 p-4">
       <div className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-black/30 px-4 py-3">
-        <p className="min-w-0 flex-1 truncate text-2xl font-black">
-          {latestHint?.text ?? "No hint yet"}
+        <p className="min-w-0 flex-1 truncate text-xl">
+          {latestHint ? (
+            <>
+              <span className="font-black text-yellow-300">
+                {hintmasterName}:
+              </span>{" "}
+              <span>{latestHint.text}</span>
+            </>
+          ) : (
+            <span className="text-slate-300">No hint yet</span>
+          )}
         </p>
-        {latestHint ? (
-          <span className="rounded-full bg-yellow-300 px-3 py-1 text-xs font-black text-black">
-            New guess
-          </span>
-        ) : null}
       </div>
       {isHintmaster ? (
         <form className="mt-3 flex gap-2" onSubmit={submit}>
@@ -382,7 +403,7 @@ function TargetRail({
               }`}
               key={`${target.contentId}-${index}`}
             >
-              <span className="rounded bg-yellow-200 px-2 py-1 text-xs">
+              <span className="ml-2 rounded bg-yellow-200 px-2 py-1 text-xs">
                 {index + 1}
               </span>
               <span className="min-w-0 flex-1 truncate">
@@ -455,14 +476,14 @@ function GuessPanel({
   }
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/10 p-5">
+    <section className="rounded-[2rem] border border-white/10 bg-white/10 p-3">
       <input
         className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder="Search Pokemon, items, towns..."
       />
-      <div className="mt-3 grid min-h-0 gap-2 md:grid-cols-4">
+      <div className="mt-3 grid min-h-0 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {(results ?? []).map((result) => (
           <button
             className="flex items-center gap-3 rounded-2xl bg-black/40 px-3 py-2 text-left font-bold transition hover:bg-yellow-300 hover:text-black"
