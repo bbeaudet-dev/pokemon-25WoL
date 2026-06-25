@@ -74,7 +74,7 @@ export default function HomePage() {
               </span>
             </h1>
             <p className="mt-4 max-w-2xl text-lg text-slate-200">
-              Help your friends guess your target words with as few hints as
+              Get your friends to guess your target words with as few hints as
               possible.
             </p>
             <p className="mt-3 text-sm text-slate-400">
@@ -127,7 +127,7 @@ export default function HomePage() {
                 <p className="px-4 py-6 text-slate-300">Loading lobbies...</p>
               ) : lobbies.length === 0 ? (
                 <p className="px-4 py-6 text-slate-300">
-                  No public lobbies yet. Create the first room.
+                  No public lobbies yet. Go create one!
                 </p>
               ) : (
                 lobbies.map((lobby) => (
@@ -196,6 +196,13 @@ export default function HomePage() {
           </div>
         </aside>
       </section>
+
+      <footer className="mt-auto pt-8 text-center text-[11px] italic leading-relaxed text-slate-500">
+        &ldquo;I give full permission to anybody out there to turn this into a
+        website in their free time.&rdquo;
+        <br />
+        &mdash; ZaneGames
+      </footer>
     </main>
   );
 }
