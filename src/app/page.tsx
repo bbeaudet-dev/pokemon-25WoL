@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Play, Plus, Users } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { convexApi } from "@/lib/convex-api";
@@ -64,30 +64,29 @@ export default function HomePage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-5 py-8">
       <section className="rounded-[2rem] border border-white/10 bg-white/10 p-8 shadow-2xl backdrop-blur">
-        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
-              Pokemon party game
-            </p>
-            <h1 className="mt-3 text-5xl font-black tracking-tight md:text-7xl">
-              25 Words or Less
+            <h1 className="flex max-w-3xl items-center gap-4 text-5xl font-black tracking-tight md:text-7xl">
+              <PokeballMark />
+              <span>25 Words or Less: Pokemon Edition!</span>
             </h1>
             <p className="mt-4 max-w-2xl text-lg text-slate-200">
-              Create a lobby, ready up, and race through Pokemon-flavored
-              target words with live hints, guesses, and scores.
+              Help your friends guess your{" "}
+              <span className="font-black text-yellow-300">target words</span>{" "}
+              with as few hints as possible.
+            </p>
+            <p className="mt-3 text-sm text-slate-400">
+              Inspired by{" "}
+              <a
+                className="font-bold text-yellow-300 underline-offset-4 hover:underline"
+                href="https://www.youtube.com/watch?v=10x-S7t1Tq0&t=1550s"
+                rel="noreferrer"
+                target="_blank"
+              >
+                ZaneGames
+              </a>
             </p>
           </div>
-
-          <label className="grid gap-2 text-sm font-bold text-slate-200">
-            Display name
-            <input
-              className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4 md:w-72"
-              value={identity.displayName}
-              maxLength={24}
-              onChange={(event) => updateDisplayName(event.target.value)}
-              placeholder="Trainer name"
-            />
-          </label>
         </div>
       </section>
 
@@ -97,9 +96,6 @@ export default function HomePage() {
             <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-yellow-300 border-t-transparent" />
             <p className="text-2xl font-black">
               {isCreating ? "Creating lobby..." : "Joining lobby..."}
-            </p>
-            <p className="mt-2 text-sm text-slate-300">
-              Syncing with Convex realtime state.
             </p>
           </div>
         </div>
@@ -115,9 +111,6 @@ export default function HomePage() {
         <div className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-2xl font-black">Open Lobbies</h2>
-            <span className="rounded-full bg-white/10 px-3 py-1 text-sm text-slate-300">
-              Public games
-            </span>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-white/10">
@@ -163,6 +156,16 @@ export default function HomePage() {
         <aside className="grid gap-5">
           <div className="rounded-[2rem] border border-white/10 bg-white/10 p-5">
             <h2 className="text-2xl font-black">Start Playing</h2>
+            <label className="mt-4 grid gap-2 text-sm font-bold text-slate-200">
+              Display name
+              <input
+                className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+                value={identity.displayName}
+                maxLength={24}
+                onChange={(event) => updateDisplayName(event.target.value)}
+                placeholder="Trainer name"
+              />
+            </label>
             <button
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={!isReady || isCreating}
@@ -171,14 +174,8 @@ export default function HomePage() {
               <Plus className="h-5 w-5" />
               {isCreating ? "Creating..." : "Create New Lobby"}
             </button>
-          </div>
 
-          <form
-            className="rounded-[2rem] border border-white/10 bg-white/10 p-5"
-            onSubmit={handleJoinLobby}
-          >
-            <h2 className="text-2xl font-black">Join By Code</h2>
-            <div className="mt-4 flex gap-2">
+            <form className="mt-4 flex gap-2" onSubmit={handleJoinLobby}>
               <input
                 className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 uppercase text-white outline-none ring-yellow-300/0 transition focus:ring-4"
                 disabled={Boolean(joiningLobbyCode)}
@@ -187,17 +184,29 @@ export default function HomePage() {
                 placeholder="ABC123"
               />
               <button
-                className="rounded-2xl bg-purple-400 px-4 py-3 font-black text-black transition hover:bg-purple-300"
-                disabled={Boolean(joiningLobbyCode)}
+                className="rounded-2xl bg-purple-400 px-4 py-3 font-black text-black transition hover:bg-purple-300 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={Boolean(joiningLobbyCode) || !joinCode.trim()}
                 type="submit"
               >
-                <Play className="h-5 w-5" />
+                Join by Code
               </button>
-            </div>
-          </form>
-
+            </form>
+          </div>
         </aside>
       </section>
     </main>
+  );
+}
+
+function PokeballMark() {
+  return (
+    <span
+      aria-hidden="true"
+      className="relative hidden h-16 w-16 shrink-0 overflow-hidden rounded-full border-4 border-white bg-white shadow-lg sm:inline-block"
+    >
+      <span className="absolute inset-x-0 top-0 h-1/2 bg-red-500" />
+      <span className="absolute inset-x-0 top-1/2 h-1 bg-slate-950" />
+      <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-slate-950 bg-white" />
+    </span>
   );
 }
