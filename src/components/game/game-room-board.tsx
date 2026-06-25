@@ -561,6 +561,7 @@ const categoryFallbackImages: Partial<Record<ContentCategory, string>> = {
   move: "/content-fallbacks/move.png",
   region: "/content-fallbacks/region.jpg",
   town: "/content-fallbacks/town.webp",
+  type: "/content-fallbacks/types.webp",
 };
 
 function WordImage({
