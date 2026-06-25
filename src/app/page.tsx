@@ -66,14 +66,16 @@ export default function HomePage() {
       <section className="rounded-[2rem] border border-white/10 bg-white/10 p-8 shadow-2xl backdrop-blur">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="flex max-w-3xl items-center gap-4 text-5xl font-black tracking-tight md:text-7xl">
+            <h1 className="flex max-w-none items-center gap-3 text-3xl font-black tracking-tight md:text-4xl lg:text-5xl">
               <PokeballMark />
-              <span>25 Words or Less: Pokemon Edition!</span>
+              <span>
+                25 Words or Less:{" "}
+                <span className="text-yellow-300">Pokemon Edition!</span>
+              </span>
             </h1>
             <p className="mt-4 max-w-2xl text-lg text-slate-200">
-              Help your friends guess your{" "}
-              <span className="font-black text-yellow-300">target words</span>{" "}
-              with as few hints as possible.
+              Help your friends guess your target words with as few hints as
+              possible.
             </p>
             <p className="mt-3 text-sm text-slate-400">
               Inspired by{" "}
@@ -156,16 +158,6 @@ export default function HomePage() {
         <aside className="grid gap-5">
           <div className="rounded-[2rem] border border-white/10 bg-white/10 p-5">
             <h2 className="text-2xl font-black">Start Playing</h2>
-            <label className="mt-4 grid gap-2 text-sm font-bold text-slate-200">
-              Display name
-              <input
-                className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-                value={identity.displayName}
-                maxLength={24}
-                onChange={(event) => updateDisplayName(event.target.value)}
-                placeholder="Trainer name"
-              />
-            </label>
             <button
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={!isReady || isCreating}
@@ -191,6 +183,16 @@ export default function HomePage() {
                 Join by Code
               </button>
             </form>
+            <label className="mt-4 flex flex-col gap-2 text-sm font-bold text-slate-200 sm:flex-row sm:items-center">
+              <span className="shrink-0">Display Name</span>
+              <input
+                className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+                value={identity.displayName}
+                maxLength={24}
+                onChange={(event) => updateDisplayName(event.target.value)}
+                placeholder="Trainer name"
+              />
+            </label>
           </div>
         </aside>
       </section>
