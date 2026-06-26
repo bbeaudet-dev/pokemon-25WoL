@@ -46,6 +46,8 @@ export type GameRoom = {
       roundScore: number;
     }>;
     roundOrder: Id<"players">[];
+    currentRoundIndex: number;
+    completedAt?: number;
   };
   round: null | {
     id: Id<"rounds">;

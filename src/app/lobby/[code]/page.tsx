@@ -6,17 +6,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameRoomBoard } from "@/components/game/game-room-board";
+import { GameSettingsPanel } from "@/components/lobby/game-settings-panel";
+import { BuyMeACoffee } from "@/components/support/buy-me-a-coffee";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
 import { convexApi } from "@/lib/convex-api";
-import {
-  advancedCategories,
-  classicCategories,
-  formatCategoryLabel,
-  makeGameSettings,
-} from "@/lib/game/rules";
-import type { ContentCategory, GameMode } from "@/lib/game/types";
-
-const customCategoryOptions = advancedCategories;
+import { makeGameSettings } from "@/lib/game/rules";
 
 export default function LobbyPage() {
   const params = useParams<{ code: string }>();
@@ -136,179 +130,6 @@ export default function LobbyPage() {
     });
   }
 
-  async function handleTurnsChange(value: number) {
-    if (!lobby) {
-      return;
-    }
-
-    await runAction(() =>
-      updateSettings({
-        lobbyId: lobby.id,
-        guestId: identity.guestId,
-        visibility: lobby.visibility,
-        settings: makeGameSettings({
-          ...lobby.settings,
-          hintGiverTurnsPerPlayer: value,
-        }),
-      }),
-    );
-  }
-
-  async function handleTargetWordsPerRoundChange(value: number) {
-    if (!lobby) {
-      return;
-    }
-
-    await runAction(() =>
-      updateSettings({
-        lobbyId: lobby.id,
-        guestId: identity.guestId,
-        visibility: lobby.visibility,
-        settings: makeGameSettings({
-          ...lobby.settings,
-          mode: "custom",
-          targetWordsPerRound: value,
-        }),
-      }),
-    );
-  }
-
-  async function handleTargetSelectionChange(
-    targetSelection: "random" | "manual",
-  ) {
-    if (!lobby) {
-      return;
-    }
-
-    await runAction(() =>
-      updateSettings({
-        lobbyId: lobby.id,
-        guestId: identity.guestId,
-        visibility: lobby.visibility,
-        settings: makeGameSettings({
-          ...lobby.settings,
-          targetSelection,
-        }),
-      }),
-    );
-  }
-
-  async function handleScoringWordLimitChange(value: number) {
-    if (!lobby) {
-      return;
-    }
-
-    await runAction(() =>
-      updateSettings({
-        lobbyId: lobby.id,
-        guestId: identity.guestId,
-        visibility: lobby.visibility,
-        settings: makeGameSettings({
-          ...lobby.settings,
-          scoringWordLimit: value,
-        }),
-      }),
-    );
-  }
-
-  async function handleHardWordLimitChange(value: number) {
-    if (!lobby) {
-      return;
-    }
-
-    await runAction(() =>
-      updateSettings({
-        lobbyId: lobby.id,
-        guestId: identity.guestId,
-        visibility: lobby.visibility,
-        settings: makeGameSettings({
-          ...lobby.settings,
-          hardWordLimit: value,
-        }),
-      }),
-    );
-  }
-
-  async function handlePointsPerRemainingWordChange(value: number) {
-    if (!lobby) {
-      return;
-    }
-
-    await runAction(() =>
-      updateSettings({
-        lobbyId: lobby.id,
-        guestId: identity.guestId,
-        visibility: lobby.visibility,
-        settings: makeGameSettings({
-          ...lobby.settings,
-          pointsPerRemainingWord: value,
-        }),
-      }),
-    );
-  }
-
-  async function handleModeChange(mode: GameMode) {
-    if (!lobby) {
-      return;
-    }
-
-    await runAction(() =>
-      updateSettings({
-        lobbyId: lobby.id,
-        guestId: identity.guestId,
-        visibility: lobby.visibility,
-        settings: makeGameSettings({
-          ...lobby.settings,
-          mode,
-          categories:
-            mode === "custom"
-              ? lobby.settings.categories.length
-                ? lobby.settings.categories
-                : advancedCategories
-              : mode === "advanced"
-                ? advancedCategories
-                : classicCategories,
-        }),
-      }),
-    );
-  }
-
-  async function handleCategoryToggle(category: ContentCategory) {
-    if (!lobby) {
-      return;
-    }
-
-    const categorySet = new Set(lobby.settings.categories);
-
-    if (categorySet.has(category)) {
-      categorySet.delete(category);
-    } else {
-      categorySet.add(category);
-    }
-
-    const categories = customCategoryOptions.filter((option) =>
-      categorySet.has(option),
-    );
-
-    if (categories.length === 0) {
-      setError("Custom mode needs at least one content category.");
-      return;
-    }
-
-    await runAction(() =>
-      updateSettings({
-        lobbyId: lobby.id,
-        guestId: identity.guestId,
-        visibility: lobby.visibility,
-        settings: makeGameSettings({
-          ...lobby.settings,
-          mode: "custom",
-          categories,
-        }),
-      }),
-    );
-  }
-
   async function copyInvite() {
     const inviteUrl = `${window.location.origin}/lobby/${code}`;
     await navigator.clipboard.writeText(inviteUrl);
@@ -411,7 +232,7 @@ export default function LobbyPage() {
                   className={`rounded-2xl px-5 py-4 font-black text-black transition ${
                     currentPlayer.isReady
                       ? "bg-orange-500 hover:bg-orange-400"
-                      : "animate-pulse bg-orange-400 hover:bg-orange-300"
+                      : "animate-pulse bg-orange-400 hover:bg-orange-300 [animation-duration:2.5s]"
                   }`}
                   onClick={() =>
                     runAction(() =>
@@ -427,7 +248,9 @@ export default function LobbyPage() {
                 </button>
                 {isHost ? (
                   <button
-                    className="animate-pulse rounded-2xl bg-green-300 px-5 py-4 font-black text-black transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-green-300"
+                    className={`rounded-2xl bg-green-300 px-5 py-4 font-black text-black transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-green-300 ${
+                      allReady ? "animate-pulse [animation-duration:2.5s]" : ""
+                    }`}
                     disabled={!allReady}
                     onClick={() =>
                       runAction(() =>
@@ -505,219 +328,13 @@ export default function LobbyPage() {
         </aside>
       </div>
 
-      <section className="mt-6 rounded-[2rem] border border-white/10 bg-black/30 p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h2 className="text-2xl font-black">Game Settings</h2>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Mode
-            </p>
-            {isHost ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(["classic", "advanced", "custom"] as const).map((mode) => (
-                  <button
-                    className={`min-w-24 rounded-xl px-3 py-2 font-black capitalize ${
-                      lobby.settings.mode === mode
-                        ? "bg-yellow-300 text-black"
-                        : "bg-black/30 text-slate-200"
-                    }`}
-                    key={mode}
-                    onClick={() => handleModeChange(mode)}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-2 text-xl font-black capitalize">
-                {lobby.settings.mode}
-              </p>
-            )}
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Targets
-            </p>
-            {isHost && lobby.settings.mode === "custom" ? (
-              <label className="mt-3 flex items-center gap-3 text-sm font-bold text-slate-200">
-                <input
-                  aria-label="Target words per round"
-                  className="w-16 rounded-xl bg-black/30 px-3 py-2 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-                  min={1}
-                  max={25}
-                  type="number"
-                  value={lobby.settings.targetWordsPerRound}
-                  onChange={(event) =>
-                    handleTargetWordsPerRoundChange(
-                      Number(event.currentTarget.value),
-                    )
-                  }
-                />
-                <span>words</span>
-              </label>
-            ) : (
-              <p className="mt-2 text-xl font-black">
-                {lobby.settings.targetWordsPerRound} words
-              </p>
-            )}
-            {isHost ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(["random", "manual"] as const).map((selection) => (
-                  <button
-                    className={`rounded-full px-3 py-2 text-sm font-black capitalize transition ${
-                      lobby.settings.targetSelection === selection
-                        ? "bg-yellow-300 text-black hover:bg-yellow-400"
-                        : "bg-black/30 text-slate-300 hover:bg-yellow-200 hover:text-black"
-                    }`}
-                    key={selection}
-                    onClick={() => handleTargetSelectionChange(selection)}
-                  >
-                    {selection}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-2 text-sm font-bold capitalize text-slate-400">
-                {lobby.settings.targetSelection} selection
-              </p>
-            )}
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Hint Limits
-            </p>
-            {isHost ? (
-              <div className="mt-3">
-                <p className="text-sm font-bold leading-9 text-slate-200">
-                  <input
-                    aria-label="Scoring word limit"
-                    className="mx-1 inline w-14 rounded-xl bg-black/30 px-2 py-1 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-                    min={1}
-                    max={50}
-                    type="number"
-                    value={lobby.settings.scoringWordLimit}
-                    onChange={(event) =>
-                      handleScoringWordLimitChange(
-                        Number(event.currentTarget.value),
-                      )
-                    }
-                  />
-                  words,
-                  <input
-                    aria-label="Points per remaining word"
-                    className="mx-1 inline w-12 rounded-xl bg-black/30 px-2 py-1 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-                    min={1}
-                    max={10}
-                    type="number"
-                    value={lobby.settings.pointsPerRemainingWord ?? 1}
-                    onChange={(event) =>
-                      handlePointsPerRemainingWordChange(
-                        Number(event.currentTarget.value),
-                      )
-                    }
-                  />
-                  {(lobby.settings.pointsPerRemainingWord ?? 1) === 1
-                    ? " point"
-                    : " points"}{" "}
-                  for each remaining,
-                  <input
-                    aria-label="Maximum word limit"
-                    className="mx-1 inline w-14 rounded-xl bg-black/30 px-2 py-1 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-                    min={lobby.settings.scoringWordLimit}
-                    max={50}
-                    type="number"
-                    value={lobby.settings.hardWordLimit}
-                    onChange={(event) =>
-                      handleHardWordLimitChange(Number(event.currentTarget.value))
-                    }
-                  />
-                  maximum words
-                </p>
-              </div>
-            ) : (
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-200">
-                {lobby.settings.scoringWordLimit} words,{" "}
-                {lobby.settings.pointsPerRemainingWord ?? 1}{" "}
-                {(lobby.settings.pointsPerRemainingWord ?? 1) === 1
-                  ? "point"
-                  : "points"}{" "}
-                for each remaining,{" "}
-                {lobby.settings.hardWordLimit} maximum words
-              </p>
-            )}
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Hintmaster Turns
-            </p>
-            {isHost ? (
-              <label className="mt-3 flex items-center gap-3 text-sm font-bold text-slate-200">
-                <input
-                  aria-label="Times each player is Hintmaster"
-                  className="w-16 rounded-xl bg-black/30 px-3 py-2 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-                  min={1}
-                  max={5}
-                  type="number"
-                  value={lobby.settings.hintGiverTurnsPerPlayer}
-                  onChange={(event) =>
-                    handleTurnsChange(Number(event.currentTarget.value))
-                  }
-                />
-                <span>per player</span>
-              </label>
-            ) : (
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-200">
-                {lobby.settings.hintGiverTurnsPerPlayer} per player
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Categories
-            </p>
-            {lobby.settings.mode !== "custom" ? (
-              <p className="text-xs font-bold text-slate-500">
-                Switch to Custom to edit
-              </p>
-            ) : null}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {customCategoryOptions.map((category) => {
-              const isSelected = lobby.settings.categories.includes(category);
-              const canEdit = isHost && lobby.settings.mode === "custom";
-
-              return (
-                <button
-                  className={`rounded-full px-3 py-2 text-sm font-black transition ${
-                    isSelected
-                      ? "bg-yellow-300 text-black ring-2 ring-yellow-100/70 hover:ring-4"
-                      : "bg-black/30 text-slate-300"
-                  } ${
-                    canEdit
-                      ? isSelected
-                        ? ""
-                        : "hover:bg-white/15 hover:text-white"
-                      : "cursor-not-allowed opacity-60"
-                  }`}
-                  disabled={!canEdit}
-                  key={category}
-                  onClick={() => handleCategoryToggle(category)}
-                >
-                  {formatCategoryLabel(category)}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      <GameSettingsPanel
+        guestId={identity.guestId}
+        isHost={isHost}
+        lobby={lobby}
+        onError={setError}
+        updateSettings={updateSettings}
+      />
     </Shell>
   );
 }
@@ -732,10 +349,10 @@ function Shell({
   isLeaving?: boolean;
 }) {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl px-5 py-8">
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-8">
       {onLeave ? (
         <button
-          className="mb-6 inline-flex items-center gap-2 text-sm font-bold text-red-500 transition hover:text-red-400 disabled:opacity-60"
+          className="mb-6 inline-flex items-center gap-2 self-start text-sm font-bold text-red-500 transition hover:text-red-400 disabled:opacity-60"
           disabled={isLeaving}
           onClick={onLeave}
         >
@@ -743,11 +360,14 @@ function Shell({
           {isLeaving ? "Leaving..." : "Leave Lobby"}
         </button>
       ) : (
-        <Link className="mb-6 inline-block text-sm font-bold text-yellow-300" href="/">
+        <Link className="mb-6 inline-block self-start text-sm font-bold text-yellow-300" href="/">
           Back to lobbies
         </Link>
       )}
       {children}
+      <footer className="mt-auto flex justify-center pt-10">
+        <BuyMeACoffee />
+      </footer>
     </main>
   );
 }

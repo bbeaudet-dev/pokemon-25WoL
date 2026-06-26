@@ -127,10 +127,12 @@ export default defineSchema({
     settings: gameSettings,
     status: lobbyStatus,
     roundOrder: v.array(v.id("players")),
+    currentRoundIndex: v.optional(v.number()),
     currentRoundId: v.optional(v.id("rounds")),
     scores: v.array(scoreEntry),
     createdAt: v.number(),
     updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
   }).index("by_lobby", ["lobbyId"]),
 
   rounds: defineTable({
@@ -168,6 +170,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_round", ["roundId"])
+    .index("by_game", ["gameId"])
     .index("by_hint_player", ["submittedHintId", "playerId"]),
 
   content: defineTable({

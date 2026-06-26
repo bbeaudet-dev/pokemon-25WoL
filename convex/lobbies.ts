@@ -370,6 +370,63 @@ export const setReady = mutationGeneric({
   },
 });
 
+export const returnToLobby = mutationGeneric({
+  args: {
+    lobbyId: v.id("lobbies"),
+    guestId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const lobby = await ctx.db.get(args.lobbyId);
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_guestId", (q) => q.eq("guestId", args.guestId))
+      .unique();
+
+    if (!lobby || !player) {
+      throw new Error("Lobby not found.");
+    }
+
+    const membership = await ctx.db
+      .query("lobbyPlayers")
+      .withIndex("by_lobby_player", (q) =>
+        (q as any).eq("lobbyId", args.lobbyId).eq("playerId", player._id),
+      )
+      .unique();
+
+    if (!membership) {
+      throw new Error("You are not in this lobby.");
+    }
+
+    if (lobby.status !== "complete") {
+      return { reset: false };
+    }
+
+    await ctx.db.patch(lobby._id, {
+      status: "open",
+      currentGameId: undefined,
+      updatedAt: Date.now(),
+    });
+
+    const memberships = await ctx.db
+      .query("lobbyPlayers")
+      .withIndex("by_lobby", (q) => q.eq("lobbyId", lobby._id))
+      .collect();
+
+    await Promise.all(
+      memberships.map((m) => ctx.db.patch(m._id, { isReady: false })),
+    );
+
+    await recordEvent(ctx, {
+      lobbyId: lobby._id,
+      playerId: player._id,
+      type: "lobby.returned",
+      payload: {},
+    });
+
+    return { reset: true };
+  },
+});
+
 export const updateDisplayName = mutationGeneric({
   args: {
     guestId: v.string(),

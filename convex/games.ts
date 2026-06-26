@@ -162,6 +162,8 @@ export const getRoom = queryGeneric({
             settings: game.settings,
             scores: game.scores,
             roundOrder: game.roundOrder,
+            currentRoundIndex: game.currentRoundIndex ?? 0,
+            completedAt: game.completedAt,
           }
         : null,
       round: round
@@ -218,6 +220,7 @@ export const start = mutationGeneric({
       settings,
       status: "in_progress",
       roundOrder,
+      currentRoundIndex: 0,
       scores: players.map((lobbyPlayer) => ({
         playerId: lobbyPlayer.id,
         totalScore: 0,
@@ -609,5 +612,210 @@ export const submitGuess = mutationGeneric({
     });
 
     return { isCorrect, ...scoredGuess };
+  },
+});
+
+export const endTurn = mutationGeneric({
+  args: {
+    roundId: v.id("rounds"),
+    guestId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+    const game = round ? await ctx.db.get(round.gameId) : null;
+
+    if (!round || !game || !player || round.hintGiverPlayerId !== player._id) {
+      throw new Error("Only the hintmaster can end this turn.");
+    }
+
+    if (round.status !== "active") {
+      throw new Error("This turn cannot be ended right now.");
+    }
+
+    const hintGiverScore = calculateHintGiverScore(
+      round.hintWords.length,
+      game.settings,
+    );
+    const scores = toScoreMap(game.scores);
+    const hintGiverScoreEntry = scores.get(round.hintGiverPlayerId) ?? {
+      playerId: round.hintGiverPlayerId,
+      totalScore: 0,
+      roundScore: 0,
+    };
+    hintGiverScoreEntry.roundScore += hintGiverScore;
+    scores.set(round.hintGiverPlayerId, hintGiverScoreEntry);
+
+    await ctx.db.patch(round._id, {
+      status: "failed",
+      completedAt: Date.now(),
+    });
+    await ctx.db.patch(game._id, {
+      scores: Array.from(scores.values()),
+      updatedAt: Date.now(),
+    });
+
+    await recordEvent(ctx, {
+      lobbyId: round.lobbyId,
+      gameId: round.gameId,
+      roundId: round._id,
+      playerId: player._id,
+      type: "round.ended_early",
+      payload: { wordsUsed: round.hintWords.length, hintGiverScore },
+    });
+
+    return { hintGiverScore };
+  },
+});
+
+export const nextRound = mutationGeneric({
+  args: {
+    lobbyId: v.id("lobbies"),
+    guestId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const lobby = await ctx.db.get(args.lobbyId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+
+    if (!lobby || !player || lobby.hostPlayerId !== player._id) {
+      throw new Error("Only the host can advance the game.");
+    }
+
+    const game = lobby.currentGameId
+      ? await ctx.db.get(lobby.currentGameId)
+      : null;
+    const round = game?.currentRoundId
+      ? await ctx.db.get(game.currentRoundId)
+      : null;
+
+    if (!game || !round) {
+      throw new Error("There is no active round to advance.");
+    }
+
+    if (round.status !== "complete" && round.status !== "failed") {
+      throw new Error("The current round is still in progress.");
+    }
+
+    const now = Date.now();
+    const committedScores = game.scores.map((score: any) => ({
+      playerId: score.playerId,
+      totalScore: score.totalScore + score.roundScore,
+      roundScore: 0,
+    }));
+
+    const nextIndex = (game.currentRoundIndex ?? 0) + 1;
+    const isGameOver = nextIndex >= game.roundOrder.length;
+
+    if (isGameOver) {
+      await ctx.db.patch(game._id, {
+        scores: committedScores,
+        currentRoundIndex: nextIndex,
+        status: "complete",
+        completedAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(lobby._id, {
+        status: "complete",
+        updatedAt: now,
+      });
+      await recordEvent(ctx, {
+        lobbyId: lobby._id,
+        gameId: game._id,
+        playerId: player._id,
+        type: "game.completed",
+        payload: { rounds: game.roundOrder.length },
+      });
+
+      return { gameOver: true };
+    }
+
+    await ctx.db.patch(game._id, {
+      scores: committedScores,
+      currentRoundIndex: nextIndex,
+      updatedAt: now,
+    });
+
+    const refreshedGame = await ctx.db.get(game._id);
+    await createRound(ctx, refreshedGame, game.roundOrder[nextIndex]);
+
+    return { gameOver: false };
+  },
+});
+
+export const getSummary = queryGeneric({
+  args: { lobbyId: v.id("lobbies") },
+  handler: async (ctx, args) => {
+    const lobby = await ctx.db.get(args.lobbyId);
+    if (!lobby) {
+      return null;
+    }
+
+    const game = lobby.currentGameId
+      ? await ctx.db.get(lobby.currentGameId)
+      : null;
+    if (!game) {
+      return null;
+    }
+
+    const players = await getLobbyPlayers(ctx, args.lobbyId);
+    const guesses = await ctx.db
+      .query("guesses")
+      .withIndex("by_game", (q) => q.eq("gameId", game._id))
+      .collect();
+    const rounds = await ctx.db
+      .query("rounds")
+      .withIndex("by_game", (q) => q.eq("gameId", game._id))
+      .collect();
+
+    const correctByPlayer = new Map<string, number>();
+    for (const guess of guesses) {
+      if (guess.isCorrect) {
+        correctByPlayer.set(
+          guess.playerId,
+          (correctByPlayer.get(guess.playerId) ?? 0) + 1,
+        );
+      }
+    }
+
+    const scoreByPlayer = new Map(
+      game.scores.map((score: any) => [score.playerId, score.totalScore]),
+    );
+
+    const standings = players
+      .map((player) => ({
+        playerId: player.id,
+        displayName: player.displayName,
+        imageUrl: player.imageUrl,
+        totalScore: (scoreByPlayer.get(player.id) as number) ?? 0,
+        correctGuesses: correctByPlayer.get(player.id) ?? 0,
+      }))
+      .sort((a, b) => b.totalScore - a.totalScore);
+
+    const topScore = standings.length
+      ? Math.max(...standings.map((entry) => entry.totalScore))
+      : 0;
+    const winnerIds =
+      game.status === "complete"
+        ? standings
+            .filter((entry) => entry.totalScore === topScore)
+            .map((entry) => entry.playerId)
+        : [];
+
+    const totalCorrectGuesses = guesses.filter(
+      (guess) => guess.isCorrect,
+    ).length;
+
+    return {
+      status: game.status,
+      settings: game.settings,
+      standings,
+      winnerIds,
+      stats: {
+        roundsPlayed: rounds.filter(
+          (round) => round.status === "complete" || round.status === "failed",
+        ).length,
+        totalCorrectGuesses,
+      },
+    };
   },
 });

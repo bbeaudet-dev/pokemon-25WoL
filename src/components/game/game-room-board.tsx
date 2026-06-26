@@ -29,6 +29,9 @@ export function GameRoomBoard({
   onError,
   onLeave,
 }: GameRoomBoardProps) {
+  const endTurn = useMutation(convexApi.games.endTurn);
+  const nextRound = useMutation(convexApi.games.nextRound);
+  const [isAdvancing, setIsAdvancing] = useState(false);
   const round = room.round;
   const currentPlayer = room.players.find(
     (player) => player.guestId === identity.guestId,
@@ -36,10 +39,42 @@ export function GameRoomBoard({
   const isHintmaster = Boolean(
     currentPlayer && round?.hintGiverPlayerId === currentPlayer.id,
   );
+  const isHost = Boolean(
+    currentPlayer && currentPlayer.id === room.lobby.hostPlayerId,
+  );
   const hintmasterName =
     room.players.find((player) => player.id === round?.hintGiverPlayerId)
       ?.displayName ?? "Hintmaster";
   const latestHintId = round?.submittedHints.at(-1)?.id;
+  const roundEnded =
+    round?.status === "complete" || round?.status === "failed";
+  const isLastRound =
+    !!room.game &&
+    room.game.currentRoundIndex >= room.game.roundOrder.length - 1;
+
+  async function handleEndTurn() {
+    if (!round) {
+      return;
+    }
+    onError(null);
+    try {
+      await endTurn({ roundId: round.id, guestId: identity.guestId });
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to end turn.");
+    }
+  }
+
+  async function handleNextRound() {
+    onError(null);
+    setIsAdvancing(true);
+    try {
+      await nextRound({ lobbyId: room.lobby.id, guestId: identity.guestId });
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to advance.");
+    } finally {
+      setIsAdvancing(false);
+    }
+  }
 
   if (!round || !room.game) {
     return (
@@ -61,6 +96,17 @@ export function GameRoomBoard({
           settings={room.game.settings}
           guestId={identity.guestId}
           onError={onError}
+        />
+      ) : null}
+      {roundEnded ? (
+        <RoundEndOverlay
+          room={room}
+          round={round}
+          hintmasterName={hintmasterName}
+          isHost={isHost}
+          isLastRound={isLastRound}
+          isAdvancing={isAdvancing}
+          onNext={handleNextRound}
         />
       ) : null}
       {error ? (
@@ -107,15 +153,25 @@ export function GameRoomBoard({
         settings={room.game.settings}
       />
 
-      <footer className="mb-6 grid justify-start gap-2 px-2 text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+      <footer className="mb-6 flex flex-wrap items-center justify-between gap-3 px-2 text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
         <span>Lobby {code}</span>
-        <button
-          className="flex items-center gap-2 text-left text-red-500 transition hover:text-red-400"
-          onClick={onLeave}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Leave
-        </button>
+        <div className="flex items-center gap-4">
+          {isHintmaster && round.status === "active" ? (
+            <button
+              className="rounded-full border border-yellow-300/40 px-4 py-2 text-yellow-300 transition hover:bg-yellow-300 hover:text-black"
+              onClick={handleEndTurn}
+            >
+              End my turn
+            </button>
+          ) : null}
+          <button
+            className="flex items-center gap-2 text-left text-red-500 transition hover:text-red-400"
+            onClick={onLeave}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Leave
+          </button>
+        </div>
       </footer>
     </main>
   );
@@ -362,6 +418,99 @@ function GuessPanel({
         ))}
       </div>
     </section>
+  );
+}
+
+function RoundEndOverlay({
+  room,
+  round,
+  hintmasterName,
+  isHost,
+  isLastRound,
+  isAdvancing,
+  onNext,
+}: {
+  room: GameRoom;
+  round: NonNullable<GameRoom["round"]>;
+  hintmasterName: string;
+  isHost: boolean;
+  isLastRound: boolean;
+  isAdvancing: boolean;
+  onNext: () => void;
+}) {
+  const solvedCount = round.targetWords.filter(
+    (target) => target.solvedByPlayerIds.length > 0,
+  ).length;
+  const scores = room.game?.scores ?? [];
+  const roundResults = [...scores]
+    .map((score) => ({
+      ...score,
+      displayName:
+        room.players.find((player) => player.id === score.playerId)
+          ?.displayName ?? "Player",
+    }))
+    .sort((a, b) => b.roundScore - a.roundScore);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-5 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-slate-950 p-7 shadow-2xl">
+        <p className="text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
+          {round.status === "complete" ? "Round complete" : "Turn ended"}
+        </p>
+        <h2 className="mt-2 text-3xl font-black">
+          {hintmasterName}&rsquo;s turn is over
+        </h2>
+        <p className="mt-2 text-slate-300">
+          {solvedCount} of {round.targetWords.length} target words solved.
+        </p>
+
+        <div className="mt-5 grid gap-2">
+          {roundResults.map((result) => (
+            <div
+              className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3"
+              key={result.playerId}
+            >
+              <span className="font-bold">{result.displayName}</span>
+              <span className="flex items-center gap-3">
+                <span
+                  className={`font-display text-sm font-black ${
+                    result.roundScore >= 0
+                      ? "text-green-300"
+                      : "text-red-400"
+                  }`}
+                >
+                  {result.roundScore >= 0 ? "+" : ""}
+                  {result.roundScore}
+                </span>
+                <span className="font-display text-lg font-black">
+                  {result.totalScore + result.roundScore}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6">
+          {isHost ? (
+            <button
+              className="w-full rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isAdvancing}
+              onClick={onNext}
+            >
+              {isAdvancing
+                ? "Loading..."
+                : isLastRound
+                  ? "See final results"
+                  : "Next round"}
+            </button>
+          ) : (
+            <p className="text-center font-bold text-slate-400">
+              Waiting for the host to continue...
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
