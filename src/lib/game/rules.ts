@@ -95,6 +95,18 @@ export function getTotalRerollWordCost(rerollCount: number) {
   return (rerollCount * (rerollCount - 1)) / 2;
 }
 
+export function canRerollWithinScoringLimit(
+  usedWordCount: number,
+  nextRerollCost: number,
+  settings: Pick<GameSettings, "scoringWordLimit">,
+) {
+  if (nextRerollCost <= 0) {
+    return true;
+  }
+
+  return settings.scoringWordLimit - usedWordCount - nextRerollCost > 0;
+}
+
 export function calculateHintGiverScore(
   usedWordCount: number,
   settings: Pick<GameSettings, "scoringWordLimit" | "hardWordLimit"> &
@@ -225,7 +237,16 @@ export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
     selected.push(...overflow.slice(0, count - selected.length));
   }
 
-  return selected.slice(0, count);
+  const [firstTarget, ...otherTargets] = selected.slice(0, count);
+
+  if (firstTarget?.category === "pokemon") {
+    return [
+      firstTarget,
+      ...selectRandomItems(otherTargets, otherTargets.length, random),
+    ];
+  }
+
+  return selectRandomItems(selected, count, random);
 }
 
 export function hintViolatesTargetWords(

@@ -1,6 +1,7 @@
 import { mutationGeneric, queryGeneric } from "convex/server";
 import { v } from "convex/values";
 import {
+  canRerollWithinScoringLimit,
   calculateHintGiverScore,
   getPreviousGuessCountForHint,
   getRerollWordCost,
@@ -272,6 +273,17 @@ export const rerollTargets = mutationGeneric({
 
     const nextReroll = round.rerollCount + 1;
     const cost = getRerollWordCost(nextReroll);
+
+    if (
+      !canRerollWithinScoringLimit(
+        round.hintWords.length,
+        cost,
+        game.settings,
+      )
+    ) {
+      throw new Error("Rerolling would use your remaining scoring words.");
+    }
+
     const rerollWords = Array.from({ length: cost }, (_, index) => {
       const text =
         cost === 1

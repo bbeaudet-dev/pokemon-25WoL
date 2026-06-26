@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canRerollWithinScoringLimit,
   calculateHintGiverScore,
   getTotalRerollWordCost,
   hintViolatesTargetWords,
@@ -50,6 +51,14 @@ describe("reroll costs", () => {
     expect(getTotalRerollWordCost(1)).toBe(0);
     expect(getTotalRerollWordCost(2)).toBe(1);
     expect(getTotalRerollWordCost(3)).toBe(3);
+  });
+
+  it("blocks rerolls that would exhaust the scoring word limit", () => {
+    const settings = { scoringWordLimit: 25 };
+
+    expect(canRerollWithinScoringLimit(12, 12, settings)).toBe(true);
+    expect(canRerollWithinScoringLimit(13, 12, settings)).toBe(false);
+    expect(canRerollWithinScoringLimit(20, 0, settings)).toBe(true);
   });
 });
 
@@ -120,7 +129,7 @@ describe("selectTargetCandidates", () => {
     expect(selected[0].category).toBe("pokemon");
   });
 
-  it("can reserve enabled anchor categories before filling the rest", () => {
+  it("can reserve enabled anchor categories without fixing their slots", () => {
     const selected = selectTargetCandidates(
       [
         makeWord("pokemon", "Sceptile"),
@@ -135,7 +144,11 @@ describe("selectTargetCandidates", () => {
       () => 0,
     );
 
-    expect(selected.map((word) => word.category)).toEqual([
+    expect(selected[0].category).toBe("pokemon");
+    expect(new Set(selected.map((word) => word.category))).toEqual(
+      new Set(["pokemon", "region", "game", "type", "move", "ability"]),
+    );
+    expect(selected.map((word) => word.category)).not.toEqual([
       "pokemon",
       "region",
       "game",

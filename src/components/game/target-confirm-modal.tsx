@@ -5,7 +5,10 @@ import { Check, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { convexApi, type GameRoom } from "@/lib/convex-api";
-import { formatCategoryLabel } from "@/lib/game/rules";
+import {
+  canRerollWithinScoringLimit,
+  formatCategoryLabel,
+} from "@/lib/game/rules";
 import { WordImage } from "./word-image";
 
 export function TargetConfirmModal({
@@ -33,6 +36,11 @@ export function TargetConfirmModal({
   const isRerolling = pendingAction === "reroll";
   const isConfirming = pendingAction === "confirm";
   const isManualSelection = settings.targetSelection === "manual";
+  const canReroll = canRerollWithinScoringLimit(
+    round.hintWords.length,
+    nextRerollCost,
+    settings,
+  );
   const targetResults = useQuery(
     convexApi.content.search,
     isManualSelection && targetQuery.trim()
@@ -173,9 +181,11 @@ export function TargetConfirmModal({
                 className={`font-display rounded-2xl px-5 py-3 font-black leading-tight text-black transition ${
                   isRerolling
                     ? "scale-95 bg-purple-200"
-                    : "bg-purple-400 hover:bg-purple-300"
-                } disabled:cursor-wait disabled:opacity-80`}
-                disabled={Boolean(pendingAction)}
+                    : !canReroll
+                      ? "bg-slate-400"
+                      : "bg-purple-400 hover:bg-purple-300"
+                } disabled:cursor-not-allowed disabled:opacity-80`}
+                disabled={Boolean(pendingAction) || !canReroll}
                 onClick={() =>
                   run("reroll", () => rerollTargets({ roundId: round.id, guestId }))
                 }
@@ -185,7 +195,9 @@ export function TargetConfirmModal({
                 />
                 {isRerolling ? "Rerolling..." : "Reroll"}
                 <span className="block text-xs">
-                  Cost: {nextRerollCost === 0 ? "FREE" : `${nextRerollCost} word${nextRerollCost === 1 ? "" : "s"}`}
+                  {!canReroll
+                    ? "Not enough scoring words"
+                    : `Cost: ${nextRerollCost === 0 ? "FREE" : `${nextRerollCost} word${nextRerollCost === 1 ? "" : "s"}`}`}
                 </span>
               </button>
             ) : null}
