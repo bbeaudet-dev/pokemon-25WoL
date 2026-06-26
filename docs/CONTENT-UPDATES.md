@@ -9,7 +9,8 @@ Pokemon Green Japan
 
 The goal will be to look through these and sniff out any categories that can be limited/eliminated, or otherwise individually cutting content.
 
-W
+See `scripts/seed-content.ts` for excluded categories, custom filters, cleanup rules, and manual label overrides.
+
 Noodles
 Poisonium Z Held
 X Attack 6

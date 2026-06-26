@@ -78,7 +78,7 @@ const endpointConfigs: Array<{
     endpoint: "type",
     category: "type",
     labelSuffix: "Type",
-    filter: (resource) => !["unknown", "shadow"].includes(resource.name),
+    filter: (resource) => resource.name !== "unknown",
   },
   { endpoint: "move", category: "move" },
   { endpoint: "ability", category: "ability", labelSuffix: "(Ability)" },

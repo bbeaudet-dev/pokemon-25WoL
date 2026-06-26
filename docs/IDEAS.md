@@ -1,5 +1,10 @@
 # Ideas
 
+## Fanmade Games
+
+Light Platinum, Radical Red, Emerald Kaizo
+Pokemon Uranium (Nuclear type, Nuclear Ball)
+
 ## Display Names & Profile Avatars
 
 Default guest names can use playful Pokemon-style combinations, such as:
