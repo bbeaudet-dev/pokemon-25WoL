@@ -62,15 +62,15 @@ export function formatCategoryLabel(category: ContentCategory) {
 }
 
 export const defaultGameSettings: GameSettings = {
-  mode: "chill",
+  mode: "classic",
   isPrivate: false,
   hintGiverTurnsPerPlayer: 1,
-  targetWordsPerRound: 8,
+  targetWordsPerRound: 10,
   scoringWordLimit: 25,
   hardWordLimit: 40,
   pointsPerRemainingWord: 1,
   pointsPerCorrectGuess: 1,
-  categories: chillCategories,
+  categories: classicCategories,
   targetSelection: "random",
 };
 
