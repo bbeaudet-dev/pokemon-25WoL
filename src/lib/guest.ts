@@ -1,4 +1,4 @@
-import { getPlayerAvatarUrl } from "./player-avatar";
+import { getPlayerAvatarUrl, namePokemon } from "./player-avatar";
 
 export type GuestIdentity = {
   guestId: string;
@@ -19,21 +19,32 @@ const nameAdjectives = [
   "Cozy",
   "Spicy",
   "Wiggly",
-];
-
-const namePokemon = [
-  "Munchlax",
-  "Garchomp",
-  "Pikachu",
-  "Charizard",
-  "Hoopa",
-  "Snorlax",
-  "Solgaleo",
-  "Lugia",
-  "Lucario",
-  "Mamoswine",
-  "Magby",
-  "Hitmontop",
+  "Bouncy",
+  "Sneaky",
+  "Mighty",
+  "Jolly",
+  "Snazzy",
+  "Zippy",
+  "Cheeky",
+  "Fluffy",
+  "Dapper",
+  "Peppy",
+  "Sassy",
+  "Mellow",
+  "Frosty",
+  "Sparkly",
+  "Shiny",
+  "Feral",
+  "Snuggly",
+  "Bubbly",
+  "Zesty",
+  "Nimble",
+  "Fierce",
+  "Radiant",
+  "Cosmic",
+  "Grumpy",
+  "Dizzy",
+  "Chunky",
 ];
 
 function createGuestId() {
