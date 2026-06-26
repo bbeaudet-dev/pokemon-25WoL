@@ -44,8 +44,18 @@ const marqueeStyles = `
 }
 `;
 
-export function ContentWheel({ className = "" }: { className?: string }) {
-  const showcase = useQuery(convexApi.content.showcase, { limit: 80 });
+const itemsPerRow = 26;
+
+export function ContentWheel({
+  rows = 2,
+  className = "",
+}: {
+  rows?: number;
+  className?: string;
+}) {
+  const showcase = useQuery(convexApi.content.showcase, {
+    limit: rows * itemsPerRow,
+  });
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
 
   const handleImageError = (imageUrl: string) => {
@@ -59,7 +69,7 @@ export function ContentWheel({ className = "" }: { className?: string }) {
     });
   };
 
-  const rows = useMemo(() => {
+  const rowItems = useMemo(() => {
     if (!showcase) {
       return null;
     }
@@ -79,39 +89,34 @@ export function ContentWheel({ className = "" }: { className?: string }) {
       ];
     });
 
-    const midpoint = Math.ceil(usable.length / 2);
-    return {
-      top: usable.slice(0, midpoint),
-      bottom: usable.slice(midpoint),
-    };
-  }, [showcase, brokenImages]);
+    const buckets: ShowcaseItem[][] = Array.from({ length: rows }, () => []);
+    usable.forEach((item, index) => {
+      buckets[index % rows].push(item);
+    });
+    return buckets;
+  }, [showcase, brokenImages, rows]);
 
-  if (!rows || (rows.top.length === 0 && rows.bottom.length === 0)) {
+  if (!rowItems || rowItems.every((row) => row.length === 0)) {
     return null;
   }
 
   return (
     <div
       aria-hidden="true"
-      className={`content-wheel-mask flex h-full w-full flex-col justify-center gap-6 overflow-hidden ${className}`}
+      className={`content-wheel-mask flex h-full w-full flex-col justify-between gap-6 overflow-hidden ${className}`}
     >
       <style>{marqueeStyles}</style>
-      {rows.top.length > 0 ? (
-        <MarqueeRow
-          items={rows.top}
-          direction="left"
-          durationSeconds={70}
-          onImageError={handleImageError}
-        />
-      ) : null}
-      {rows.bottom.length > 0 ? (
-        <MarqueeRow
-          items={rows.bottom}
-          direction="right"
-          durationSeconds={85}
-          onImageError={handleImageError}
-        />
-      ) : null}
+      {rowItems.map((items, index) =>
+        items.length > 0 ? (
+          <MarqueeRow
+            key={index}
+            items={items}
+            direction={index % 2 === 0 ? "left" : "right"}
+            durationSeconds={68 + index * 9}
+            onImageError={handleImageError}
+          />
+        ) : null,
+      )}
     </div>
   );
 }

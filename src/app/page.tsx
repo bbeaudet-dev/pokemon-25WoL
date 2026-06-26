@@ -63,15 +63,15 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-5 py-8">
-      <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/40 p-8 shadow-2xl">
-        <div className="pointer-events-none absolute inset-0 opacity-70">
-          <ContentWheel />
-        </div>
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/65 to-slate-950/80" />
-        <div className="relative [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
-          <div>
-            <h1 className="flex max-w-none items-center gap-3 text-3xl font-black tracking-tight md:text-4xl lg:text-5xl">
+    <>
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <ContentWheel rows={5} className="opacity-70" />
+        <div className="absolute inset-0 bg-slate-950/35" />
+      </div>
+      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-5 py-8">
+      <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/15 p-8 shadow-2xl [text-shadow:0_2px_12px_rgba(0,0,0,0.9)]">
+        <div>
+          <h1 className="flex max-w-none items-center gap-3 text-3xl font-black tracking-tight md:text-4xl lg:text-5xl">
             <PokeballMark />
             <span>
               25 Words or Less:{" "}
@@ -96,7 +96,7 @@ export default function HomePage() {
         </div>
         <div className="mt-6 flex justify-end">
           <a
-            className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm font-black text-white transition hover:bg-black/50"
+            className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-white/15 bg-black/80 px-4 py-3 text-sm font-black text-white transition hover:bg-black"
             href="https://github.com/bbeaudet-dev/pokemon-25WoL"
             rel="noreferrer"
             target="_blank"
@@ -104,7 +104,6 @@ export default function HomePage() {
             <GithubMark />
             View on GitHub
           </a>
-        </div>
         </div>
       </section>
 
@@ -219,7 +218,8 @@ export default function HomePage() {
         <br />
         &mdash; ZaneGames
       </footer>
-    </main>
+      </main>
+    </>
   );
 }
 
