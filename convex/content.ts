@@ -201,3 +201,38 @@ export const upsertMany = mutationGeneric({
     return { count: ids.length };
   },
 });
+
+export const removeManyBySourceIds = mutationGeneric({
+  args: {
+    category: contentCategory,
+    source: v.union(v.literal("pokeapi"), v.literal("curated")),
+    sourceIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const sourceIds = new Set(args.sourceIds);
+    const words = await ctx.db
+      .query("content")
+      .withIndex("by_category", (q) => q.eq("category", args.category))
+      .collect();
+    const removable = words.filter(
+      (word) =>
+        word.source === args.source &&
+        word.sourceId &&
+        sourceIds.has(word.sourceId),
+    );
+
+    await Promise.all(removable.map((word) => ctx.db.delete(word._id)));
+
+    await ctx.db.insert("events", {
+      type: "content.removed",
+      payload: {
+        count: removable.length,
+        category: args.category,
+        source: args.source,
+      },
+      createdAt: Date.now(),
+    });
+
+    return { count: removable.length };
+  },
+});

@@ -21,9 +21,17 @@ type NamedResourceList = {
 };
 
 type ItemDetail = {
+  category: {
+    name: string;
+  };
   sprites: {
     default: string | null;
   };
+};
+
+type ItemSeedData = {
+  excludedCategory?: string;
+  imageUrl?: string;
 };
 
 const upsertMany = makeFunctionReference<
@@ -31,6 +39,12 @@ const upsertMany = makeFunctionReference<
   { words: SeedWord[] },
   { count: number }
 >("content:upsertMany");
+
+const removeManyBySourceIds = makeFunctionReference<
+  "mutation",
+  { category: ContentCategory; source: WordSource; sourceIds: string[] },
+  { count: number }
+>("content:removeManyBySourceIds");
 
 const endpointConfigs: Array<{
   endpoint: string;
@@ -55,6 +69,14 @@ const endpointConfigs: Array<{
 const batchSize = 100;
 const detailFetchConcurrency = 20;
 const maxMutationAttempts = 3;
+const excludedItemCategories = new Set([
+  "all-machines",
+  "data-cards",
+  "dynamax-crystals",
+  "picnic",
+  "tm-materials",
+  "unused",
+]);
 
 function titleCase(name: string) {
   return name
@@ -70,18 +92,22 @@ function idFromUrl(url: string) {
 async function imageUrlFor(
   category: ContentCategory,
   sourceId?: string,
-  sourceUrl?: string,
 ) {
   if (category === "pokemon" && sourceId) {
     return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${sourceId}.png`;
   }
 
-  if (category === "item" && sourceUrl) {
-    const item = await fetchJson<ItemDetail>(sourceUrl);
-    return item.sprites.default ?? undefined;
+  return undefined;
+}
+
+async function getItemSeedData(sourceUrl: string): Promise<ItemSeedData> {
+  const item = await fetchJson<ItemDetail>(sourceUrl);
+
+  if (excludedItemCategories.has(item.category.name)) {
+    return { excludedCategory: item.category.name };
   }
 
-  return undefined;
+  return { imageUrl: item.sprites.default ?? undefined };
 }
 
 function labelFor(name: string, labelPrefix?: string) {
@@ -180,6 +206,7 @@ async function main() {
   const skipped: string[] = [];
   const duplicates: string[] = [];
   const missingImages = new Map<ContentCategory, number>();
+  const removedSourceIds = new Map<ContentCategory, Set<string>>();
 
   for (const config of endpointConfigs) {
     const list = await fetchEndpoint(config.endpoint);
@@ -197,14 +224,30 @@ async function main() {
         }
 
         const sourceId = idFromUrl(result.url);
+        const itemSeedData =
+          config.category === "item" ? await getItemSeedData(result.url) : {};
+
+        if (itemSeedData.excludedCategory) {
+          skipped.push(
+            `${config.endpoint}:${result.name} (${itemSeedData.excludedCategory})`,
+          );
+
+          if (sourceId) {
+            const categoryIds =
+              removedSourceIds.get(config.category) ?? new Set<string>();
+            categoryIds.add(sourceId);
+            removedSourceIds.set(config.category, categoryIds);
+          }
+
+          return null;
+        }
+
         const word: SeedWord = {
           label: labelFor(result.name, config.labelPrefix),
           category: config.category,
-          imageUrl: await imageUrlFor(
-            config.category,
-            sourceId,
-            result.url,
-          ),
+          imageUrl:
+            itemSeedData.imageUrl ??
+            (await imageUrlFor(config.category, sourceId)),
           source: "pokeapi",
           sourceId,
           sourceUrl: result.url,
@@ -258,6 +301,15 @@ async function main() {
   console.log(`Skipped records: ${skipped.length}`);
   console.log(`Duplicate category/label records: ${duplicates.length}`);
   console.log("Missing images by category:", Object.fromEntries(missingImages));
+
+  for (const [category, sourceIds] of removedSourceIds) {
+    const result = await client.mutation(removeManyBySourceIds, {
+      category,
+      source: "pokeapi",
+      sourceIds: Array.from(sourceIds),
+    });
+    console.log(`Removed ${result.count} excluded ${category} records.`);
+  }
 }
 
 main().catch((error) => {
