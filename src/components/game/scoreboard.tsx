@@ -64,9 +64,16 @@ export function Scoreboard({
             : netRoundScore === 0
               ? "text-yellow-600"
               : "text-green-600";
+        const cardResultClass = latestGuess
+          ? latestGuess.isCorrect
+            ? "bg-green-100"
+            : "bg-red-100"
+          : "bg-white";
         return (
           <div className="relative" key={player.id}>
-            <div className="clip-score relative flex min-h-24 items-center gap-3 bg-white px-4 py-3 pt-5 text-black shadow-lg">
+            <div
+              className={`clip-score relative flex min-h-24 items-center gap-3 px-4 py-3 pt-5 text-black shadow-lg ${cardResultClass}`}
+            >
               {player.id === hintmasterId ? (
                 <div className="font-display absolute left-6 right-8 top-0 flex items-center justify-center gap-1 rounded-b-xl bg-yellow-300 px-3 py-1 text-center text-[10px] font-black uppercase tracking-widest text-black">
                   <Crown className="h-3 w-3" />
