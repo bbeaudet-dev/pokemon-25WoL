@@ -362,6 +362,10 @@ async function imageUrlFor(
     return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${sourceId}.png`;
   }
 
+  if (category === "type" && sourceId) {
+    return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/types/generation-viii/sword-shield/${sourceId}.png`;
+  }
+
   return undefined;
 }
 
