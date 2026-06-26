@@ -68,6 +68,12 @@ Then open [http://localhost:3000](http://localhost:3000) and you're off!
 
 More detail lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
+## Feedback
+
+Played it and have thoughts? I'd genuinely love to hear them — good, bad, or bug. It takes about a minute:
+
+**[Share feedback](https://docs.google.com/forms/d/e/1FAIpQLScTsZ4dWwLgLwfDaOZYTmbj6t6GScRlnrMcs7TKB5fpbOkrIw/viewform)**
+
 ## Credits
 
 This whole thing exists because of **[ZaneGames](https://www.youtube.com/watch?v=10x-S7t1Tq0&t=1550s)**, who built the original Pokémon spin on *25 Words or Less* and said in his video:
