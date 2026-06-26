@@ -5,6 +5,7 @@ import { ArrowLeft, Check, Clipboard, Crown, Play, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GameOverScreen } from "@/components/game/game-over-screen";
 import { GameRoomBoard } from "@/components/game/game-room-board";
 import { GameSettingsPanel } from "@/components/lobby/game-settings-panel";
 import { BuyMeACoffee } from "@/components/support/buy-me-a-coffee";
@@ -165,6 +166,17 @@ export default function LobbyPage() {
           </Link>
         </div>
       </Shell>
+    );
+  }
+
+  if (room?.lobby.status === "complete" && room.game) {
+    return (
+      <GameOverScreen
+        code={code}
+        identity={identity}
+        room={room}
+        onLeave={handleLeave}
+      />
     );
   }
 
