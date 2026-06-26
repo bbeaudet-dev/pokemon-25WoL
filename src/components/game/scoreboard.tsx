@@ -53,6 +53,7 @@ export function Scoreboard({
         const score = scores.find((entry) => entry.playerId === player.id);
         const totals = guessTotals.get(player.id) ?? { earned: 0, penalties: 0 };
         const isHintmaster = player.id === hintmasterId;
+        const latestHint = isHintmaster ? room.round?.submittedHints.at(-1) : null;
         const netRoundScore =
           isHintmaster
             ? projectedHintmasterScore
@@ -86,31 +87,44 @@ export function Scoreboard({
                 imageUrl={player.imageUrl}
               />
               <div className="min-w-0 flex-1">
-                <p className="font-display truncate font-black">
-                  {player.displayName}
-                </p>
-                {latestGuess ? (
-                  <div className="mt-1 flex min-w-0 items-center gap-2 rounded-xl bg-black/10 px-2 py-1 text-xs font-bold">
-                    <WordImage
-                      category={latestGuess.guessedWord.category}
-                      imageUrl={latestGuess.guessedWord.imageUrl}
-                      label={latestGuess.guessedWord.label}
-                      size="sm"
-                    />
-                    <span className="font-display min-w-0 truncate">
-                      {latestGuess.guessedWord.label}
+                {latestHint ? (
+                  <div className="mt-2 min-w-0 rounded-xl bg-yellow-300/30 px-3 py-2 text-xs font-bold leading-snug">
+                    <span className="font-display block text-[10px] uppercase tracking-widest text-yellow-800">
+                      Hint
                     </span>
-                    <span
-                      className={
-                        latestGuess.isCorrect
-                          ? "font-display text-green-700"
-                          : "font-display text-slate-500"
-                      }
-                    >
-                      {latestGuess.isCorrect ? "Correct" : "Miss"}
+                    <span className="font-display wrap-break-word block whitespace-normal text-sm">
+                      {latestHint.text}
                     </span>
                   </div>
-                ) : null}
+                ) : (
+                  <>
+                    <p className="font-display truncate font-black">
+                      {player.displayName}
+                    </p>
+                    {latestGuess ? (
+                      <div className="mt-1 flex min-w-0 items-center gap-2 rounded-xl bg-black/10 px-2 py-1 text-xs font-bold">
+                        <WordImage
+                          category={latestGuess.guessedWord.category}
+                          imageUrl={latestGuess.guessedWord.imageUrl}
+                          label={latestGuess.guessedWord.label}
+                          size="sm"
+                        />
+                        <span className="font-display min-w-0 truncate">
+                          {latestGuess.guessedWord.label}
+                        </span>
+                        <span
+                          className={
+                            latestGuess.isCorrect
+                              ? "font-display text-green-700"
+                              : "font-display text-slate-500"
+                          }
+                        >
+                          {latestGuess.isCorrect ? "Correct" : "Miss"}
+                        </span>
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
               <div className="text-right">
                 <p className={`font-display text-sm font-black ${roundScoreClass}`}>

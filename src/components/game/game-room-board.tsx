@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Crown, RotateCcw, Send } from "lucide-react";
+import { ArrowLeft, RotateCcw, Send } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -142,7 +142,6 @@ export function GameRoomBoard({
             isHintmaster={isHintmaster}
             round={round}
             settings={room.game.settings}
-            hintmasterName={hintmasterName}
             guestId={identity.guestId}
             latestHintId={latestHintId}
             currentPlayer={currentPlayer}
@@ -271,7 +270,6 @@ function CurrentHint({
   isHintmaster,
   round,
   settings,
-  hintmasterName,
   guestId,
   latestHintId,
   currentPlayer,
@@ -280,7 +278,6 @@ function CurrentHint({
   isHintmaster: boolean;
   round: NonNullable<GameRoom["round"]>;
   settings: NonNullable<GameRoom["game"]>["settings"];
-  hintmasterName: string;
   guestId: string;
   latestHintId?: string;
   currentPlayer?: GameRoom["players"][number];
@@ -324,17 +321,8 @@ function CurrentHint({
 
   return (
     <section className="rounded-4xl border border-white/10 bg-white/10 p-4">
-      <div className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-black/30 px-4 py-3">
-        <p className="font-display min-w-0 flex-1 truncate text-xl">
-          <span className="font-black text-yellow-300">
-            <Crown className="mr-1 inline h-4 w-4 align-[-2px]" />
-            {hintmasterName}:
-          </span>{" "}
-          {latestHint ? <span>{latestHint.text}</span> : null}
-        </p>
-      </div>
       {isHintmaster ? (
-        <form className="mt-3 flex gap-2" onSubmit={submit}>
+        <form className="flex gap-2" onSubmit={submit}>
           <input
             className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
             disabled={round.status !== "active"}
