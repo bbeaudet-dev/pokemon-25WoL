@@ -90,7 +90,7 @@ export function GameOverScreen({
         </h1>
       </header>
 
-      <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
+      <section className="rounded-4xl border border-white/10 bg-white/5 p-6">
         <h2 className="text-xl font-black">Final Standings</h2>
         <div className="mt-4 grid gap-2">
           {summary.standings.map((entry, index) => {
@@ -154,7 +154,7 @@ export function GameOverScreen({
         </button>
       </div>
 
-      <section className="rounded-[2rem] border border-yellow-300/20 bg-yellow-300/5 p-6 text-center">
+      <section className="rounded-4xl border border-yellow-300/20 bg-yellow-300/5 p-6 text-center">
         <MessageSquareHeart className="mx-auto h-7 w-7 text-yellow-300" />
         <h2 className="mt-3 text-xl font-black">How was your experience?</h2>
         <p className="mt-1 text-sm text-slate-300">

@@ -97,7 +97,7 @@ export function GameSettingsPanel({
   }
 
   return (
-    <section className="mt-6 rounded-[2rem] border border-white/10 bg-black/30 p-6">
+    <section className="mt-6 rounded-4xl border border-white/10 bg-black/30 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-2xl font-black">Game Settings</h2>

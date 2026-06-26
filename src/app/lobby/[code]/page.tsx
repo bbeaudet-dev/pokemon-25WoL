@@ -159,7 +159,7 @@ export default function LobbyPage() {
   if (lobby === null) {
     return (
       <Shell>
-        <div className="rounded-[2rem] border border-white/10 bg-white/10 p-8">
+        <div className="rounded-4xl border border-white/10 bg-white/10 p-8">
           <h1 className="text-3xl font-black">Lobby not found</h1>
           <Link className="mt-5 inline-block text-yellow-300" href="/">
             Back to lobby browser
@@ -206,7 +206,7 @@ export default function LobbyPage() {
         </div>
       ) : null}
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+        <section className="rounded-4xl border border-white/10 bg-white/10 p-6">
           <div className="flex flex-col gap-5">
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
@@ -282,7 +282,7 @@ export default function LobbyPage() {
           </div>
         </section>
 
-        <aside className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6">
+        <aside className="rounded-4xl border border-white/10 bg-slate-950/70 p-6">
           <div className="flex items-center gap-3">
             <Users className="h-6 w-6 text-yellow-300" />
             <h2 className="text-2xl font-black">Players</h2>

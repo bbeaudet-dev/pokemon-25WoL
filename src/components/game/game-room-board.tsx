@@ -210,7 +210,7 @@ function CurrentHint({
   }
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/10 p-4">
+    <section className="rounded-4xl border border-white/10 bg-white/10 p-4">
       <div className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-black/30 px-4 py-3">
         <p className="font-display min-w-0 flex-1 truncate text-xl">
           {latestHint ? (
@@ -252,7 +252,7 @@ function HintWordGrid({
   settings: NonNullable<GameRoom["game"]>["settings"];
 }) {
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-4">
+    <section className="rounded-4xl border border-white/10 bg-slate-950/70 p-4">
       <div className="grid grid-flow-col grid-rows-10 gap-1.5 overflow-x-auto">
         {Array.from({ length: settings.hardWordLimit }, (_, index) => {
           const word = round.hintWords[index];
@@ -293,7 +293,7 @@ function TargetRail({
   players: GameRoom["players"];
 }) {
   return (
-    <aside className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-4">
+    <aside className="rounded-4xl border border-white/10 bg-slate-950/70 p-4">
       <div className="grid gap-2">
         {targetWords.map((target, index) => {
           const solved = target.solvedByPlayerIds.length > 0;
@@ -389,7 +389,7 @@ function GuessPanel({
   }
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/10 p-3">
+    <section className="rounded-4xl border border-white/10 bg-white/10 p-3">
       <input
         className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
         value={query}
@@ -453,7 +453,7 @@ function RoundEndOverlay({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-5 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-slate-950 p-7 shadow-2xl">
+      <div className="w-full max-w-lg rounded-4xl border border-white/10 bg-slate-950 p-7 shadow-2xl">
         <p className="text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
           {round.status === "complete" ? "Round complete" : "Turn ended"}
         </p>

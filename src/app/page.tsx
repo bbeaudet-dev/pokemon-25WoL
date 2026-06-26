@@ -70,7 +70,7 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-slate-950/35" />
       </div>
       <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-5 py-8">
-      <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/15 p-8 shadow-2xl [text-shadow:0_2px_12px_rgba(0,0,0,0.9)]">
+      <section className="relative overflow-hidden rounded-4xl border border-white/10 bg-slate-950/15 p-8 shadow-2xl [text-shadow:0_2px_12px_rgba(0,0,0,0.9)]">
         <div>
           <h1 className="flex max-w-none items-center gap-3 text-3xl font-black tracking-tight md:text-4xl lg:text-5xl">
             <PokeballMark />
@@ -110,7 +110,7 @@ export default function HomePage() {
 
       {isCreating || joiningLobbyCode ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-5 backdrop-blur-sm">
-          <div className="rounded-[2rem] border border-white/10 bg-slate-950 p-8 text-center shadow-2xl">
+          <div className="rounded-4xl border border-white/10 bg-slate-950 p-8 text-center shadow-2xl">
             <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-yellow-300 border-t-transparent" />
             <p className="text-2xl font-black">
               {isCreating ? "Creating lobby..." : "Joining lobby..."}
@@ -126,7 +126,7 @@ export default function HomePage() {
       ) : null}
 
       <section className="grid gap-5 lg:grid-cols-[1.5fr_0.9fr]">
-        <div className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-5">
+        <div className="rounded-4xl border border-white/10 bg-slate-950/70 p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-2xl font-black">Open Lobbies</h2>
           </div>
@@ -172,7 +172,7 @@ export default function HomePage() {
         </div>
 
         <aside className="grid gap-5">
-          <div className="rounded-[2rem] border border-white/10 bg-white/10 p-5">
+          <div className="rounded-4xl border border-white/10 bg-white/10 p-5">
             <h2 className="text-2xl font-black">Start Playing</h2>
             <button
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"

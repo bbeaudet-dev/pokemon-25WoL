@@ -81,7 +81,7 @@ export function TargetConfirmModal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-5 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950 p-6 shadow-2xl">
+      <div className="w-full max-w-2xl rounded-4xl border border-white/10 bg-slate-950 p-6 shadow-2xl">
         <p className="font-display text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
           {isHintmaster
             ? isManualSelection
