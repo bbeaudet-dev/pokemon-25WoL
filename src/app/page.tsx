@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { Plus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { convexApi } from "@/lib/convex-api";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
 import { ContentWheel } from "@/components/home/content-wheel";
@@ -19,6 +19,18 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [joiningLobbyCode, setJoiningLobbyCode] = useState<string | null>(null);
+  const [draftDisplayName, setDraftDisplayName] = useState(
+    identity.displayName,
+  );
+  const canSaveDisplayName =
+    draftDisplayName.trim() &&
+    draftDisplayName.trim() !== identity.displayName;
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setDraftDisplayName(identity.displayName);
+    });
+  }, [identity.displayName]);
 
   async function handleCreateLobby() {
     if (!isReady) {
@@ -203,11 +215,20 @@ export default function HomePage() {
               <span className="shrink-0">Display Name</span>
               <input
                 className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-                value={identity.displayName}
+                value={draftDisplayName}
                 maxLength={24}
-                onChange={(event) => updateDisplayName(event.target.value)}
+                onChange={(event) => setDraftDisplayName(event.target.value)}
                 placeholder="Trainer name"
               />
+              {canSaveDisplayName ? (
+                <button
+                  className="rounded-xl bg-yellow-300 px-3 py-2 text-sm font-black text-black"
+                  onClick={() => updateDisplayName(draftDisplayName.trim())}
+                  type="button"
+                >
+                  Save
+                </button>
+              ) : null}
             </label>
           </div>
         </aside>

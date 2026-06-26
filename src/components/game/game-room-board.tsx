@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Crown, Send } from "lucide-react";
+import { ArrowLeft, Crown, RotateCcw, Send } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -32,6 +32,8 @@ export function GameRoomBoard({
   const endTurn = useMutation(convexApi.games.endTurn);
   const nextRound = useMutation(convexApi.games.nextRound);
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [isEndTurnConfirmOpen, setIsEndTurnConfirmOpen] = useState(false);
+  const [isEndingTurn, setIsEndingTurn] = useState(false);
   const round = room.round;
   const currentPlayer = room.players.find(
     (player) => player.guestId === identity.guestId,
@@ -57,10 +59,14 @@ export function GameRoomBoard({
       return;
     }
     onError(null);
+    setIsEndingTurn(true);
     try {
       await endTurn({ roundId: round.id, guestId: identity.guestId });
+      setIsEndTurnConfirmOpen(false);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Unable to end turn.");
+    } finally {
+      setIsEndingTurn(false);
     }
   }
 
@@ -109,35 +115,39 @@ export function GameRoomBoard({
           onNext={handleNextRound}
         />
       ) : null}
+      {isEndTurnConfirmOpen ? (
+        <EndTurnConfirmModal
+          isEnding={isEndingTurn}
+          onCancel={() => setIsEndTurnConfirmOpen(false)}
+          onConfirm={handleEndTurn}
+        />
+      ) : null}
       {error ? (
         <div className="rounded-2xl border border-red-300/30 bg-red-500/20 px-4 py-3 text-red-100">
           {error}
         </div>
       ) : null}
 
-      <section className="grid gap-5 lg:grid-cols-[1fr_320px]">
-        <div className="grid gap-5">
+      <section className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid min-h-0 gap-4 lg:grid-rows-[auto_minmax(0,1fr)]">
           <CurrentHint
             isHintmaster={isHintmaster}
             round={round}
+            settings={room.game.settings}
             hintmasterName={hintmasterName}
             guestId={identity.guestId}
+            latestHintId={latestHintId}
+            currentPlayer={currentPlayer}
             onError={onError}
           />
-          {!isHintmaster && currentPlayer ? (
-            <GuessPanel
-              round={round}
-              settings={room.game.settings}
-              guestId={identity.guestId}
+          <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(26rem,1.15fr)]">
+            <Scoreboard
+              room={room}
+              hintmasterId={round.hintGiverPlayerId}
               latestHintId={latestHintId}
-              onError={onError}
             />
-          ) : null}
-          <Scoreboard
-            room={room}
-            hintmasterId={round.hintGiverPlayerId}
-            latestHintId={latestHintId}
-          />
+            <HintWordGrid round={round} settings={room.game.settings} />
+          </div>
         </div>
 
         <TargetRail
@@ -148,18 +158,13 @@ export function GameRoomBoard({
         />
       </section>
 
-      <HintWordGrid
-        round={round}
-        settings={room.game.settings}
-      />
-
-      <footer className="mb-6 flex flex-wrap items-center justify-between gap-3 px-2 text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
+      <footer className="mb-6 flex flex-col items-start gap-2 px-2 text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
         <span>Lobby {code}</span>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           {isHintmaster && round.status === "active" ? (
             <button
               className="rounded-full border border-yellow-300/40 px-4 py-2 text-yellow-300 transition hover:bg-yellow-300 hover:text-black"
-              onClick={handleEndTurn}
+              onClick={() => setIsEndTurnConfirmOpen(true)}
             >
               End my turn
             </button>
@@ -169,7 +174,7 @@ export function GameRoomBoard({
             onClick={onLeave}
           >
             <ArrowLeft className="h-4 w-4" />
-            Leave
+            Leave Lobby
           </button>
         </div>
       </footer>
@@ -177,17 +182,63 @@ export function GameRoomBoard({
   );
 }
 
+function EndTurnConfirmModal({
+  isEnding,
+  onCancel,
+  onConfirm,
+}: {
+  isEnding: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-5 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-4xl border border-white/10 bg-slate-950 p-7 shadow-2xl">
+        <p className="text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
+          End Turn
+        </p>
+        <h2 className="mt-2 text-3xl font-black">End your hintmaster turn?</h2>
+        <p className="mt-3 text-slate-300">
+          This will stop the current turn and score your remaining hint words.
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button
+            className="rounded-2xl bg-white/10 px-5 py-4 font-black text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isEnding}
+            onClick={onCancel}
+          >
+            Keep Playing
+          </button>
+          <button
+            className="rounded-2xl bg-red-500 px-5 py-4 font-black text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isEnding}
+            onClick={onConfirm}
+          >
+            {isEnding ? "Ending..." : "End Turn"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CurrentHint({
   isHintmaster,
   round,
+  settings,
   hintmasterName,
   guestId,
+  latestHintId,
+  currentPlayer,
   onError,
 }: {
   isHintmaster: boolean;
   round: NonNullable<GameRoom["round"]>;
+  settings: NonNullable<GameRoom["game"]>["settings"];
   hintmasterName: string;
   guestId: string;
+  latestHintId?: string;
+  currentPlayer?: GameRoom["players"][number];
   onError: (message: string | null) => void;
 }) {
   const submitHintText = useMutation(convexApi.games.submitHintText);
@@ -209,21 +260,32 @@ function CurrentHint({
     }
   }
 
+  async function repeatPreviousHint() {
+    if (!latestHint) {
+      return;
+    }
+
+    onError(null);
+    try {
+      await submitHintText({
+        roundId: round.id,
+        guestId,
+        text: latestHint.text,
+      });
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to repeat hint.");
+    }
+  }
+
   return (
     <section className="rounded-4xl border border-white/10 bg-white/10 p-4">
       <div className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-black/30 px-4 py-3">
         <p className="font-display min-w-0 flex-1 truncate text-xl">
-          {latestHint ? (
-            <>
-              <span className="font-black text-yellow-300">
-                <Crown className="mr-1 inline h-4 w-4 align-[-2px]" />
-                {hintmasterName}:
-              </span>{" "}
-              <span>{latestHint.text}</span>
-            </>
-          ) : (
-            <span className="text-slate-300">No hint yet</span>
-          )}
+          <span className="font-black text-yellow-300">
+            <Crown className="mr-1 inline h-4 w-4 align-[-2px]" />
+            {hintmasterName}:
+          </span>{" "}
+          {latestHint ? <span>{latestHint.text}</span> : null}
         </p>
       </div>
       {isHintmaster ? (
@@ -235,10 +297,29 @@ function CurrentHint({
             onChange={(event) => setText(event.target.value)}
             placeholder="Type hint words, then press Enter"
           />
+          <button
+            aria-label="Repeat previous hint"
+            className="font-display rounded-2xl border border-yellow-300/40 bg-black/30 px-4 py-3 font-black text-yellow-300 transition hover:bg-yellow-300 hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={round.status !== "active" || !latestHint}
+            onClick={repeatPreviousHint}
+            title="Repeat previous hint"
+            type="button"
+          >
+            <RotateCcw className="h-5 w-5" />
+          </button>
           <button className="font-display rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black">
             <Send className="h-5 w-5" />
           </button>
         </form>
+      ) : null}
+      {!isHintmaster && currentPlayer ? (
+        <GuessPanel
+          round={round}
+          settings={settings}
+          guestId={guestId}
+          latestHintId={latestHintId}
+          onError={onError}
+        />
       ) : null}
     </section>
   );
@@ -252,8 +333,8 @@ function HintWordGrid({
   settings: NonNullable<GameRoom["game"]>["settings"];
 }) {
   return (
-    <section className="rounded-4xl border border-white/10 bg-slate-950/70 p-4">
-      <div className="grid grid-flow-col grid-rows-10 gap-1.5 overflow-x-auto">
+    <section className="min-h-0 rounded-4xl border border-white/10 bg-slate-950/70 p-4">
+      <div className="grid max-h-112 grid-flow-col grid-rows-10 gap-1.5 overflow-auto">
         {Array.from({ length: settings.hardWordLimit }, (_, index) => {
           const word = round.hintWords[index];
           return (
@@ -389,7 +470,7 @@ function GuessPanel({
   }
 
   return (
-    <section className="rounded-4xl border border-white/10 bg-white/10 p-3">
+    <div className="mt-3">
       <input
         className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-white outline-none ring-yellow-300/0 transition focus:ring-4"
         value={query}
@@ -417,7 +498,7 @@ function GuessPanel({
           </button>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
 

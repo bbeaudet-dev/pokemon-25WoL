@@ -47,7 +47,7 @@ export function Scoreboard({
   );
 
   return (
-    <section className="grid grid-cols-2 gap-3">
+    <section className="grid content-start gap-3 sm:grid-cols-2 xl:grid-cols-1">
       {room.players.map((player) => {
         const score = scores.find((entry) => entry.playerId === player.id);
         const totals = guessTotals.get(player.id) ?? { earned: 0, penalties: 0 };
@@ -65,35 +65,8 @@ export function Scoreboard({
               ? "text-yellow-600"
               : "text-green-600";
         return (
-          <div
-            className={`relative ${latestGuess ? "pt-10" : "pt-5"}`}
-            key={player.id}
-          >
-            {latestGuess ? (
-              <div className="absolute left-3 top-0 z-10 max-w-[calc(100%-1.5rem)] rounded-2xl bg-black/80 px-2 py-1 text-xs font-bold text-white shadow-xl">
-                <div className="flex items-center gap-2">
-                  <WordImage
-                    category={latestGuess.guessedWord.category}
-                    imageUrl={latestGuess.guessedWord.imageUrl}
-                    label={latestGuess.guessedWord.label}
-                    size="sm"
-                  />
-                  <span className="font-display min-w-0 truncate">
-                    {latestGuess.guessedWord.label}
-                  </span>
-                  <span
-                    className={
-                      latestGuess.isCorrect
-                        ? "font-display text-green-300"
-                        : "font-display text-slate-400"
-                    }
-                  >
-                    {latestGuess.isCorrect ? "Correct" : "Miss"}
-                  </span>
-                </div>
-              </div>
-            ) : null}
-            <div className="clip-score relative flex min-h-20 items-center gap-3 bg-white px-4 py-3 pt-5 text-black shadow-lg">
+          <div className="relative" key={player.id}>
+            <div className="clip-score relative flex min-h-24 items-center gap-3 bg-white px-4 py-3 pt-5 text-black shadow-lg">
               {player.id === hintmasterId ? (
                 <div className="font-display absolute left-6 right-8 top-0 flex items-center justify-center gap-1 rounded-b-xl bg-yellow-300 px-3 py-1 text-center text-[10px] font-black uppercase tracking-widest text-black">
                   <Crown className="h-3 w-3" />
@@ -107,6 +80,28 @@ export function Scoreboard({
                 <p className="font-display truncate font-black">
                   {player.displayName}
                 </p>
+                {latestGuess ? (
+                  <div className="mt-1 flex min-w-0 items-center gap-2 rounded-xl bg-black/10 px-2 py-1 text-xs font-bold">
+                    <WordImage
+                      category={latestGuess.guessedWord.category}
+                      imageUrl={latestGuess.guessedWord.imageUrl}
+                      label={latestGuess.guessedWord.label}
+                      size="sm"
+                    />
+                    <span className="font-display min-w-0 truncate">
+                      {latestGuess.guessedWord.label}
+                    </span>
+                    <span
+                      className={
+                        latestGuess.isCorrect
+                          ? "font-display text-green-700"
+                          : "font-display text-slate-500"
+                      }
+                    >
+                      {latestGuess.isCorrect ? "Correct" : "Miss"}
+                    </span>
+                  </div>
+                ) : null}
               </div>
               <div className="text-right">
                 <p className={`font-display text-sm font-black ${roundScoreClass}`}>

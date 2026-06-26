@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameOverScreen } from "@/components/game/game-over-screen";
 import { GameRoomBoard } from "@/components/game/game-room-board";
+import { ContentWheel } from "@/components/home/content-wheel";
 import { GameSettingsPanel } from "@/components/lobby/game-settings-panel";
 import { BuyMeACoffee } from "@/components/support/buy-me-a-coffee";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
@@ -361,26 +362,32 @@ function Shell({
   isLeaving?: boolean;
 }) {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-8">
-      {onLeave ? (
-        <button
-          className="mb-6 inline-flex items-center gap-2 self-start text-sm font-bold text-red-500 transition hover:text-red-400 disabled:opacity-60"
-          disabled={isLeaving}
-          onClick={onLeave}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {isLeaving ? "Leaving..." : "Leave Lobby"}
-        </button>
-      ) : (
-        <Link className="mb-6 inline-block self-start text-sm font-bold text-yellow-300" href="/">
-          Back to lobbies
-        </Link>
-      )}
-      {children}
-      <footer className="mt-auto flex justify-center pt-10">
-        <BuyMeACoffee />
-      </footer>
-    </main>
+    <>
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <ContentWheel rows={5} className="opacity-55" />
+        <div className="absolute inset-0 bg-slate-950/55" />
+      </div>
+      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-8">
+        {onLeave ? (
+          <button
+            className="mb-6 inline-flex items-center gap-2 self-start text-sm font-bold text-red-500 transition hover:text-red-400 disabled:opacity-60"
+            disabled={isLeaving}
+            onClick={onLeave}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {isLeaving ? "Leaving..." : "Leave Lobby"}
+          </button>
+        ) : (
+          <Link className="mb-6 inline-block self-start text-sm font-bold text-yellow-300" href="/">
+            Back to lobbies
+          </Link>
+        )}
+        {children}
+        <footer className="mt-auto flex justify-center pt-10">
+          <BuyMeACoffee />
+        </footer>
+      </main>
+    </>
   );
 }
 
