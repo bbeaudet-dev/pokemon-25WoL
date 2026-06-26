@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { convexApi } from "@/lib/convex-api";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
+import { ContentWheel } from "@/components/home/content-wheel";
 
 export default function HomePage() {
   const router = useRouter();
@@ -64,33 +65,44 @@ export default function HomePage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-5 py-8">
       <section className="rounded-[2rem] border border-white/10 bg-white/10 p-8 shadow-2xl backdrop-blur">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="flex max-w-none items-center gap-3 text-3xl font-black tracking-tight md:text-4xl lg:text-5xl">
-              <PokeballMark />
-              <span>
-                25 Words or Less:{" "}
-                <span className="text-yellow-300">Pokemon Edition!</span>
-              </span>
-            </h1>
-            <p className="mt-4 max-w-2xl text-lg text-slate-200">
-              Get your friends to guess your target words with as few hints as
-              possible.
-            </p>
-            <p className="mt-3 text-sm text-slate-400">
-              Inspired by{" "}
-              <a
-                className="font-bold text-yellow-300 underline-offset-4 hover:underline"
-                href="https://www.youtube.com/watch?v=10x-S7t1Tq0&t=1550s"
-                rel="noreferrer"
-                target="_blank"
-              >
-                ZaneGames
-              </a>
-            </p>
-          </div>
+        <div>
+          <h1 className="flex max-w-none items-center gap-3 text-3xl font-black tracking-tight md:text-4xl lg:text-5xl">
+            <PokeballMark />
+            <span>
+              25 Words or Less:{" "}
+              <span className="text-yellow-300">Pokemon Edition!</span>
+            </span>
+          </h1>
+          <p className="mt-4 max-w-2xl text-lg text-slate-200">
+            Get your friends to guess your target words with as few hints as
+            possible.
+          </p>
+          <p className="mt-3 text-sm text-slate-400">
+            Inspired by{" "}
+            <a
+              className="font-bold text-yellow-300 underline-offset-4 hover:underline"
+              href="https://www.youtube.com/watch?v=10x-S7t1Tq0&t=1550s"
+              rel="noreferrer"
+              target="_blank"
+            >
+              ZaneGames
+            </a>
+          </p>
+        </div>
+        <div className="mt-6 flex justify-end">
+          <a
+            className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm font-black text-white transition hover:bg-black/50"
+            href="https://github.com/bbeaudet-dev/pokemon-25WoL"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <GithubMark />
+            View on GitHub
+          </a>
         </div>
       </section>
+
+      <ContentWheel />
 
       {isCreating || joiningLobbyCode ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-5 backdrop-blur-sm">
@@ -217,5 +229,18 @@ function PokeballMark() {
       <span className="absolute inset-x-0 top-1/2 h-1 bg-slate-950" />
       <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-slate-950 bg-white" />
     </span>
+  );
+}
+
+function GithubMark() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5"
+      fill="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.05-.02-2.06-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.89-.01 3.29 0 .32.21.7.82.58A12.01 12.01 0 0 0 24 12.5C24 5.87 18.63.5 12 .5z" />
+    </svg>
   );
 }
