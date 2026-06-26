@@ -77,7 +77,7 @@ export default function HomePage() {
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <div className="pointer-events-none fixed inset-0 z-0 transform-gpu overflow-hidden">
         <ContentWheel rows={5} className="opacity-70" />
         <div className="absolute inset-0 bg-slate-950/35" />
       </div>

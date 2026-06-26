@@ -182,12 +182,12 @@ function WheelCard({
   return (
     <div className="flex w-24 shrink-0 flex-col items-center gap-2">
       <div
-        className={`grid h-20 w-20 place-items-center rounded-2xl border border-white/10 bg-gradient-to-b ${accent} p-2 backdrop-blur`}
+        className={`grid h-20 w-20 place-items-center rounded-2xl border border-white/10 bg-gradient-to-b ${accent} p-2`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt=""
-          className="h-full w-full object-contain drop-shadow"
+          className="h-full w-full object-contain"
           loading="lazy"
           src={item.imageUrl}
           onError={() => item.imageUrl && onImageError(item.imageUrl)}
