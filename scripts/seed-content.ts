@@ -1,5 +1,12 @@
 import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference } from "convex/server";
+import {
+  curatedImageSources,
+  findLocalCuratedImageUrl,
+  gameSourceIdFromLabel,
+  gymLeaderNames,
+  sourceIdForGymLeader,
+} from "./curated-image-data";
 import { getContentIdentityKey } from "../src/lib/content/identity";
 import type { ContentCategory, WordSource } from "../src/lib/game/types";
 
@@ -34,7 +41,7 @@ type ItemSeedData = {
   imageUrl?: string;
 };
 
-type CuratedImageSource = {
+type PageImageSource = {
   provider: "bulbapedia-page-image" | "fandom-page-image";
   title: string;
 };
@@ -90,34 +97,6 @@ const excludedItemCategories = new Set([
   "tm-materials",
   "unused",
 ]);
-
-const curatedImageSources: Record<string, CuratedImageSource> = {
-  "professor-oak": { provider: "fandom-page-image", title: "Professor Oak" },
-  "professor-elm": { provider: "fandom-page-image", title: "Professor Elm" },
-  "professor-birch": { provider: "fandom-page-image", title: "Professor Birch" },
-  "professor-rowan": { provider: "fandom-page-image", title: "Professor Rowan" },
-  "professor-juniper": {
-    provider: "fandom-page-image",
-    title: "Professor Juniper",
-  },
-  "professor-sycamore": {
-    provider: "fandom-page-image",
-    title: "Professor Sycamore",
-  },
-  "professor-kukui": { provider: "fandom-page-image", title: "Professor Kukui" },
-  "professor-magnolia": {
-    provider: "fandom-page-image",
-    title: "Professor Magnolia",
-  },
-  "professor-sonia": { provider: "fandom-page-image", title: "Sonia" },
-  "professor-laventon": {
-    provider: "fandom-page-image",
-    title: "Professor Laventon",
-  },
-  "professor-sada": { provider: "fandom-page-image", title: "Professor Sada" },
-  "professor-turo": { provider: "fandom-page-image", title: "Professor Turo" },
-  "professor-krane": { provider: "fandom-page-image", title: "Professor Krane" },
-};
 
 function curatedWord(
   label: string,
@@ -237,86 +216,11 @@ const curatedContentWords: SeedWord[] = [
     "professor-krane",
     "https://bulbapedia.bulbagarden.net/wiki/Professor_Krane",
   ),
-  ...[
-    "Brock",
-    "Misty",
-    "Lt. Surge",
-    "Erika",
-    "Koga",
-    "Sabrina",
-    "Blaine",
-    "Giovanni",
-    "Blue",
-    "Falkner",
-    "Bugsy",
-    "Whitney",
-    "Morty",
-    "Chuck",
-    "Jasmine",
-    "Pryce",
-    "Clair",
-    "Roxanne",
-    "Brawly",
-    "Wattson",
-    "Flannery",
-    "Norman",
-    "Winona",
-    "Tate and Liza",
-    "Wallace",
-    "Juan",
-    "Roark",
-    "Gardenia",
-    "Maylene",
-    "Crasher Wake",
-    "Fantina",
-    "Byron",
-    "Candice",
-    "Volkner",
-    "Cilan",
-    "Chili",
-    "Cress",
-    "Lenora",
-    "Burgh",
-    "Elesa",
-    "Clay",
-    "Skyla",
-    "Brycen",
-    "Drayden",
-    "Iris",
-    "Cheren",
-    "Roxie",
-    "Marlon",
-    "Viola",
-    "Grant",
-    "Korrina",
-    "Ramos",
-    "Clemont",
-    "Valerie",
-    "Olympia",
-    "Wulfric",
-    "Milo",
-    "Nessa",
-    "Kabu",
-    "Bea",
-    "Allister",
-    "Opal",
-    "Gordie",
-    "Melony",
-    "Piers",
-    "Raihan",
-    "Katy",
-    "Brassius",
-    "Iono",
-    "Kofu",
-    "Larry",
-    "Ryme",
-    "Tulip",
-    "Grusha",
-  ].map((leader) =>
+  ...gymLeaderNames.map((leader) =>
     curatedWord(
       leader,
       "gym_leader",
-      `gym-leader-${leader.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+      sourceIdForGymLeader(leader),
       `https://bulbapedia.bulbagarden.net/wiki/${leader.replaceAll(" ", "_")}`,
     ),
   ),
@@ -403,7 +307,22 @@ async function imageUrlFor(
   }
 
   if (category === "type" && sourceId) {
+    const localImageUrl = findLocalCuratedImageUrl(process.cwd(), {
+      category,
+      sourceId,
+    });
+    if (localImageUrl) {
+      return localImageUrl;
+    }
+
     return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/types/generation-ix/scarlet-violet/${sourceId}.png`;
+  }
+
+  if (category === "game" && label) {
+    return findLocalCuratedImageUrl(process.cwd(), {
+      category,
+      sourceId: gameSourceIdFromLabel(label),
+    });
   }
 
   if (category === "region" && label) {
@@ -416,7 +335,7 @@ async function imageUrlFor(
   return undefined;
 }
 
-async function pageImageUrlFor(source: CuratedImageSource) {
+async function pageImageUrlFor(source: PageImageSource) {
   const apiUrl =
     source.provider === "bulbapedia-page-image"
       ? "https://bulbapedia.bulbagarden.net/w/api.php"
@@ -448,17 +367,26 @@ async function curatedImageUrlFor(word: SeedWord) {
     return undefined;
   }
 
-  const source =
-    curatedImageSources[word.sourceId] ??
-    (word.category === "gym_leader"
-      ? ({ provider: "fandom-page-image", title: word.label } as const)
-      : undefined);
+  const source = curatedImageSources[word.sourceId];
+  if (source) {
+    const localImageUrl = findLocalCuratedImageUrl(process.cwd(), source);
+    if (localImageUrl) {
+      return localImageUrl;
+    }
 
-  if (!source) {
-    return undefined;
+    if (source.provider === "fandom-page-image") {
+      return await pageImageUrlFor(source);
+    }
   }
 
-  return await pageImageUrlFor(source);
+  if (word.category === "gym_leader") {
+    return await pageImageUrlFor({
+      provider: "fandom-page-image",
+      title: word.label,
+    });
+  }
+
+  return undefined;
 }
 
 async function getItemSeedData(sourceUrl: string): Promise<ItemSeedData> {

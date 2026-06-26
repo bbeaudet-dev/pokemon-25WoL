@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "download:curated-images": "tsx scripts/download-curated-images.ts",
     "seed:content": "tsx scripts/seed-content.ts",
     "test": "vitest run",
     "test:watch": "vitest"

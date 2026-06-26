@@ -190,6 +190,7 @@ function WheelCard({
         <img
           alt=""
           className="h-full w-full object-contain"
+          decoding="async"
           src={item.imageUrl}
           onError={() => item.imageUrl && onImageError(item.imageUrl)}
         />

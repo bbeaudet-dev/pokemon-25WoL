@@ -50,6 +50,8 @@ export function WordImage({
     <img
       alt={label}
       className={`${sizeClass} shrink-0 rounded-full bg-white object-contain`}
+      decoding="async"
+      loading="lazy"
       onError={() => setFailedImageUrl(displayImageUrl)}
       src={displayImageUrl}
     />
