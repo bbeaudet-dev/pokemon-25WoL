@@ -402,12 +402,17 @@ async function imageUrlFor(
   return undefined;
 }
 
-async function curatedImageUrlFor(sourceId?: string) {
-  if (!sourceId) {
+async function curatedImageUrlFor(word: SeedWord) {
+  if (!word.sourceId) {
     return undefined;
   }
 
-  const source = curatedImageSources[sourceId];
+  const source =
+    curatedImageSources[word.sourceId] ??
+    (word.category === "gym_leader"
+      ? ({ provider: "fandom-page-image", title: word.label } as const)
+      : undefined);
+
   if (!source) {
     return undefined;
   }
@@ -626,7 +631,7 @@ async function main() {
     let imageUrl = word.imageUrl;
     if (!imageUrl) {
       try {
-        imageUrl = await curatedImageUrlFor(word.sourceId);
+        imageUrl = await curatedImageUrlFor(word);
       } catch (error) {
         console.warn(
           `Unable to fetch curated image for ${word.sourceId ?? word.label}:`,
