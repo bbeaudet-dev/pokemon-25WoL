@@ -44,6 +44,12 @@ describe("makeGameSettings", () => {
         .hardWordLimit,
     ).toBe(25);
   });
+
+  it("sets target counts for fixed modes", () => {
+    expect(makeGameSettings({ mode: "chill" }).targetWordsPerRound).toBe(8);
+    expect(makeGameSettings({ mode: "classic" }).targetWordsPerRound).toBe(10);
+    expect(makeGameSettings({ mode: "advanced" }).targetWordsPerRound).toBe(12);
+  });
 });
 
 describe("reroll costs", () => {
@@ -146,22 +152,26 @@ describe("selectTargetCandidates", () => {
 
     expect(selected[0].category).toBe("pokemon");
     expect(new Set(selected.map((word) => word.category))).toEqual(
-      new Set(["pokemon", "region", "game", "type", "move", "ability"]),
+      new Set(["pokemon", "region", "game", "type", "item", "move"]),
     );
     expect(selected.map((word) => word.category)).not.toEqual([
       "pokemon",
       "region",
       "game",
       "type",
+      "item",
       "move",
-      "ability",
     ]);
   });
 
-  it("soft caps items while enough non-item content exists", () => {
+  it("caps randomized categories while enough pokemon exist to fill", () => {
     const selected = selectTargetCandidates(
       [
         makeWord("pokemon", "Sceptile"),
+        makeWord("pokemon", "Raichu"),
+        makeWord("pokemon", "Lapras"),
+        makeWord("pokemon", "Dragonite"),
+        makeWord("pokemon", "Gengar"),
         makeWord("item", "Potion"),
         makeWord("item", "X Attack"),
         makeWord("item", "Noodles"),
@@ -172,34 +182,47 @@ describe("selectTargetCandidates", () => {
         makeWord("ability", "Static"),
         makeWord("town", "Pallet Town"),
         makeWord("professor", "Professor Oak"),
+        makeWord("gym_leader", "Brock"),
+        makeWord("badge", "Boulder Badge"),
       ],
-      10,
+      12,
       () => 0,
     );
 
-    expect(selected.filter((word) => word.category === "item")).toHaveLength(2);
+    expect(selected).toHaveLength(12);
+    expect(selected.filter((word) => word.category === "item").length).toBeLessThanOrEqual(2);
+    expect(selected.filter((word) => word.category === "move")).toHaveLength(1);
+    expect(selected.filter((word) => word.category === "town")).toHaveLength(1);
+    expect(selected.filter((word) => word.category === "ability")).toHaveLength(1);
+    expect(selected.filter((word) => word.category === "region")).toHaveLength(1);
+    expect(selected.filter((word) => word.category === "game")).toHaveLength(1);
+    expect(selected.filter((word) => word.category === "type")).toHaveLength(1);
+    expect(selected.filter((word) => word.category === "professor")).toHaveLength(1);
+    expect(selected.filter((word) => word.category === "gym_leader")).toHaveLength(1);
+    expect(selected.filter((word) => word.category === "badge")).toHaveLength(1);
   });
 
-  it("soft caps moves while enough non-move content exists", () => {
+  it("fills with pokemon after capped classic categories are exhausted", () => {
     const selected = selectTargetCandidates(
       [
         makeWord("pokemon", "Sceptile"),
-        makeWord("move", "Thunderbolt"),
-        makeWord("move", "Shadow Mist"),
-        makeWord("move", "Teatime"),
+        makeWord("pokemon", "Raichu"),
+        makeWord("pokemon", "Lapras"),
+        makeWord("pokemon", "Dragonite"),
         makeWord("region", "Kanto Region"),
         makeWord("game", "Pokemon Scarlet"),
         makeWord("type", "Fire Type"),
-        makeWord("ability", "Static (Ability)"),
-        makeWord("town", "Pallet Town"),
+        makeWord("item", "Potion"),
+        makeWord("item", "X Attack"),
+        makeWord("item", "Noodles"),
         makeWord("professor", "Professor Oak"),
-        makeWord("badge", "Boulder Badge"),
+        makeWord("gym_leader", "Brock"),
       ],
       10,
       () => 0,
     );
 
-    expect(selected.filter((word) => word.category === "move")).toHaveLength(2);
+    expect(selected.filter((word) => word.category === "pokemon")).toHaveLength(3);
   });
 });
 

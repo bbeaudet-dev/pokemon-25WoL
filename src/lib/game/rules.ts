@@ -65,7 +65,7 @@ export const defaultGameSettings: GameSettings = {
   mode: "chill",
   isPrivate: false,
   hintGiverTurnsPerPlayer: 1,
-  targetWordsPerRound: 10,
+  targetWordsPerRound: 8,
   scoringWordLimit: 25,
   hardWordLimit: 40,
   pointsPerRemainingWord: 1,
@@ -73,6 +73,12 @@ export const defaultGameSettings: GameSettings = {
   categories: chillCategories,
   targetSelection: "random",
 };
+
+export const targetWordsByMode = {
+  chill: 8,
+  classic: 10,
+  advanced: 12,
+} as const;
 
 export function normalizeWord(value: string) {
   return value
@@ -97,6 +103,16 @@ export function makeGameSettings(
     ...defaultGameSettings,
     ...overrides,
   };
+
+  if (settings.mode !== "custom") {
+    settings.targetWordsPerRound = targetWordsByMode[settings.mode];
+    settings.categories =
+      settings.mode === "advanced"
+        ? advancedCategories
+        : settings.mode === "classic"
+          ? classicCategories
+          : chillCategories;
+  }
 
   if (settings.hardWordLimit < settings.scoringWordLimit) {
     settings.hardWordLimit = settings.scoringWordLimit;
@@ -188,9 +204,38 @@ export const targetAnchorCategories: ContentCategory[] = [
   "region",
   "game",
   "type",
+  "item",
+  "professor",
+  "gym_leader",
+  "badge",
+  "town",
   "move",
   "ability",
 ];
+
+const targetCategoryCaps: Partial<Record<ContentCategory, number>> = {
+  ability: 1,
+  badge: 1,
+  game: 1,
+  gym_leader: 1,
+  item: 2,
+  move: 1,
+  professor: 1,
+  region: 1,
+  town: 1,
+  type: 1,
+};
+
+const targetCategoryChances: Partial<Record<ContentCategory, number>> = {
+  ability: 0.5,
+  badge: 0.5,
+  move: 0.5,
+  town: 0.5,
+};
+
+function getTargetCategoryChance(category: ContentCategory) {
+  return targetCategoryChances[category] ?? 0.7;
+}
 
 export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
   items: T[],
@@ -199,11 +244,22 @@ export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
 ) {
   const selected: T[] = [];
   const remaining = [...items];
-  const maxItemTargets = Math.max(1, Math.floor(count * 0.2));
-  const maxMoveTargets = Math.max(1, Math.floor(count * 0.2));
-  const anchorChance = 0.7;
+  const enabledCategories = new Set<ContentCategory>(["pokemon"]);
+
+  function selectedCategoryCount(category: ContentCategory) {
+    return selected.filter((item) => item.category === category).length;
+  }
+
+  function canSelectCategory(category: ContentCategory) {
+    const cap = targetCategoryCaps[category];
+    return cap === undefined || selectedCategoryCount(category) < cap;
+  }
 
   function takeRandomFromCategory(category: ContentCategory) {
+    if (!canSelectCategory(category)) {
+      return undefined;
+    }
+
     const candidates = remaining
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => item.category === category);
@@ -229,7 +285,8 @@ export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
       break;
     }
 
-    if (random() <= anchorChance) {
+    if (random() <= getTargetCategoryChance(category)) {
+      enabledCategories.add(category);
       takeRandomFromCategory(category);
     }
   }
@@ -240,17 +297,7 @@ export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
       break;
     }
 
-    const itemCount = selected.filter(
-      (selectedItem) => selectedItem.category === "item",
-    ).length;
-    if (item.category === "item" && itemCount >= maxItemTargets) {
-      continue;
-    }
-
-    const moveCount = selected.filter(
-      (selectedItem) => selectedItem.category === "move",
-    ).length;
-    if (item.category === "move" && moveCount >= maxMoveTargets) {
+    if (!enabledCategories.has(item.category) || !canSelectCategory(item.category)) {
       continue;
     }
 
@@ -259,8 +306,22 @@ export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
 
   if (selected.length < count) {
     const selectedSet = new Set(selected);
-    const overflow = shuffledRemaining.filter((item) => !selectedSet.has(item));
-    selected.push(...overflow.slice(0, count - selected.length));
+    for (const item of shuffledRemaining) {
+      if (selected.length >= count) {
+        break;
+      }
+
+      if (
+        selectedSet.has(item) ||
+        !enabledCategories.has(item.category) ||
+        !canSelectCategory(item.category)
+      ) {
+        continue;
+      }
+
+      selected.push(item);
+      selectedSet.add(item);
+    }
   }
 
   const [firstTarget, ...otherTargets] = selected.slice(0, count);

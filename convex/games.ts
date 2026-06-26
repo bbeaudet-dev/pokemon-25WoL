@@ -82,9 +82,19 @@ async function selectTargetWords(ctx: any, settings: any) {
     );
   }
 
-  return selectTargetCandidates(content, settings.targetWordsPerRound).map(
-    toTargetWord,
-  );
+  const targetWords = selectTargetCandidates(
+    content,
+    settings.targetWordsPerRound,
+    Math.random,
+  ).map(toTargetWord);
+
+  if (targetWords.length < settings.targetWordsPerRound) {
+    throw new Error(
+      "Not enough content has been seeded for these category limits.",
+    );
+  }
+
+  return targetWords;
 }
 
 async function createRound(ctx: any, game: any, hintGiverPlayerId: string) {

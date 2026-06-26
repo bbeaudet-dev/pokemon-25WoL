@@ -46,5 +46,15 @@ Bridge Mail U
 Sinnoh Route 202
 Item Urge
 Onion
+Pokemon Event 10
+Tagtree Thicket
+Parfum Palace
+X Defense 2
+Marine Tube
+Grassy Seed
+Paldea South Province Four
+Smart Candy Xl
+Pokemon Festa 07
+Chamber of Emptiness
 
 The goal will be to look through these and sniff out any categories that can be limited/eliminated, or otherwise individually cutting content.
