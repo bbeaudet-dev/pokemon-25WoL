@@ -140,7 +140,7 @@ export default function HomePage() {
       <section className="grid gap-5 lg:grid-cols-[1.5fr_0.9fr]">
         <div className="rounded-4xl border border-white/10 bg-slate-950/70 p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-2xl font-black">Open Lobbies</h2>
+            <h2 className="text-2xl font-black">Active Lobbies</h2>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-white/10">
@@ -155,7 +155,7 @@ export default function HomePage() {
                 <p className="px-4 py-6 text-slate-300">Loading lobbies...</p>
               ) : lobbies.length === 0 ? (
                 <p className="px-4 py-6 text-slate-300">
-                  No public lobbies yet. Go create one!
+                  No active lobbies yet. Go create one!
                 </p>
               ) : (
                 lobbies.map((lobby) => (
@@ -169,13 +169,29 @@ export default function HomePage() {
                       <Users className="h-4 w-4 text-yellow-300" />
                       {lobby.playerCount}/{lobby.maxPlayers}
                     </span>
-                    <button
-                      className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-black text-black transition hover:bg-yellow-200"
-                      disabled={joiningLobbyCode === lobby.code}
-                      onClick={() => joinByCode(lobby.code)}
-                    >
-                      {joiningLobbyCode === lobby.code ? "Joining..." : "Join"}
-                    </button>
+                    {lobby.status === "in_progress" ? (
+                      <button
+                        className="rounded-full bg-slate-700 px-4 py-2 text-sm font-black text-slate-300"
+                        disabled
+                      >
+                        In Progress
+                      </button>
+                    ) : lobby.visibility === "private" ? (
+                      <button
+                        className="rounded-full bg-slate-700 px-4 py-2 text-sm font-black text-slate-300"
+                        disabled
+                      >
+                        Private
+                      </button>
+                    ) : (
+                      <button
+                        className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-black text-black transition hover:bg-yellow-200"
+                        disabled={joiningLobbyCode === lobby.code}
+                        onClick={() => joinByCode(lobby.code)}
+                      >
+                        {joiningLobbyCode === lobby.code ? "Joining..." : "Join"}
+                      </button>
+                    )}
                   </div>
                 ))
               )}

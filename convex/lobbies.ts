@@ -121,14 +121,15 @@ export const listOpen = queryGeneric({
   handler: async (ctx) => {
     const lobbies = await ctx.db
       .query("lobbies")
-      .withIndex("by_status_visibility", (q) =>
-        (q as any).eq("status", "open").eq("visibility", "public"),
-      )
       .order("desc")
-      .take(25);
+      .take(50);
+
+    const activeLobbies = lobbies
+      .filter((lobby) => lobby.status !== "complete")
+      .slice(0, 25);
 
     return await Promise.all(
-      lobbies.map(async (lobby) => {
+      activeLobbies.map(async (lobby) => {
         const players = await getLobbyPlayers(ctx, lobby._id);
         const host = players.find((player) => player.isHost);
 
