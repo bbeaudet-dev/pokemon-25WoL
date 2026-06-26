@@ -7,7 +7,9 @@ import { FormEvent, useEffect, useState } from "react";
 import { convexApi } from "@/lib/convex-api";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
 import { ContentWheel } from "@/components/home/content-wheel";
+import { PlayerAvatar } from "@/components/player-avatar";
 import { BuyMeACoffee } from "@/components/support/buy-me-a-coffee";
+import { getPlayerAvatarUrl } from "@/lib/player-avatar";
 
 const lobbiesPerPage = 10;
 
@@ -118,28 +120,28 @@ export default function HomePage() {
             Get your friends to guess your target words with as few hints as
             possible.
           </p>
-          <p className="mt-3 text-sm text-slate-400">
-            Inspired by{" "}
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-400">
+              Inspired by{" "}
+              <a
+                className="font-bold text-yellow-300 underline-offset-4 hover:underline"
+                href="https://www.youtube.com/watch?v=10x-S7t1Tq0&t=1550s"
+                rel="noreferrer"
+                target="_blank"
+              >
+                ZaneGames
+              </a>
+            </p>
             <a
-              className="font-bold text-yellow-300 underline-offset-4 hover:underline"
-              href="https://www.youtube.com/watch?v=10x-S7t1Tq0&t=1550s"
+              className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-white/15 bg-black/80 px-4 py-3 text-sm font-black text-white transition hover:bg-black"
+              href="https://github.com/bbeaudet-dev/pokemon-25WoL"
               rel="noreferrer"
               target="_blank"
             >
-              ZaneGames
+              <GithubMark />
+              View on GitHub
             </a>
-          </p>
-        </div>
-        <div className="mt-6 flex justify-end">
-          <a
-            className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-white/15 bg-black/80 px-4 py-3 text-sm font-black text-white transition hover:bg-black"
-            href="https://github.com/bbeaudet-dev/pokemon-25WoL"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <GithubMark />
-            View on GitHub
-          </a>
+          </div>
         </div>
       </section>
 
@@ -304,6 +306,10 @@ export default function HomePage() {
                   Save
                 </button>
               ) : null}
+              <PlayerAvatar
+                displayName={draftDisplayName || identity.displayName}
+                imageUrl={getPlayerAvatarUrl(draftDisplayName)}
+              />
             </label>
           </div>
         </aside>
