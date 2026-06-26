@@ -125,43 +125,39 @@ export const search = queryGeneric({
 
 const showcaseCategories = ["pokemon", "item"] as const;
 
-function shuffleInPlace<T>(items: T[]) {
-  for (let i = items.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [items[i], items[j]] = [items[j], items[i]];
-  }
-  return items;
-}
-
+// Returns a deterministic pool of image-backed Pokemon and items. Keeping this
+// query deterministic lets Convex cache it and share one result across every
+// visitor; the client shuffles and samples this pool so the wheel still looks
+// fresh on each page load without re-reading the table per visit.
 export const showcase = queryGeneric({
   args: {
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const limit = Math.min(Math.max(args.limit ?? 80, 1), 200);
-    const perCategoryPool = 500;
+    const limit = Math.min(Math.max(args.limit ?? 300, 1), 600);
+    const perCategory = Math.ceil(limit / showcaseCategories.length);
+    const scanWindow = 500;
 
     const pools = await Promise.all(
       showcaseCategories.map((category) =>
         ctx.db
           .query("content")
           .withIndex("by_category", (q) => q.eq("category", category))
-          .take(perCategoryPool),
+          .take(scanWindow),
       ),
     );
 
-    const withImages = pools
-      .flat()
-      .filter((word) => Boolean(word.imageUrl));
-
-    shuffleInPlace(withImages);
-
-    return withImages.slice(0, limit).map((word) => ({
-      id: word._id,
-      label: word.label,
-      category: word.category,
-      imageUrl: word.imageUrl,
-    }));
+    return pools.flatMap((pool) =>
+      pool
+        .filter((word) => Boolean(word.imageUrl))
+        .slice(0, perCategory)
+        .map((word) => ({
+          id: word._id,
+          label: word.label,
+          category: word.category,
+          imageUrl: word.imageUrl,
+        })),
+    );
   },
 });
 

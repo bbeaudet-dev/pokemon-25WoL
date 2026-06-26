@@ -46,6 +46,15 @@ const marqueeStyles = `
 
 const itemsPerRow = 26;
 
+function shuffle<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 export function ContentWheel({
   rows = 2,
   className = "",
@@ -53,8 +62,10 @@ export function ContentWheel({
   rows?: number;
   className?: string;
 }) {
+  // Request more than we display so the client can sample a fresh subset of
+  // the (cached, deterministic) server pool on each page load.
   const showcase = useQuery(convexApi.content.showcase, {
-    limit: rows * itemsPerRow,
+    limit: rows * itemsPerRow * 2,
   });
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
 
@@ -69,34 +80,41 @@ export function ContentWheel({
     });
   };
 
-  const rowItems = useMemo(() => {
+  // Shuffle + bucket once per mount. Intentionally excludes brokenImages so a
+  // failed image only drops that one card (filtered below) instead of
+  // reshuffling the whole wheel.
+  const rowSelection = useMemo(() => {
     if (!showcase) {
       return null;
     }
 
-    const usable: ShowcaseItem[] = showcase.flatMap((item) => {
-      if (!item.imageUrl || brokenImages.has(item.imageUrl)) {
-        return [];
-      }
+    const pool: ShowcaseItem[] = showcase.map((item) => ({
+      id: item.id,
+      label: item.label,
+      category: item.category,
+      imageUrl: item.imageUrl,
+    }));
 
-      return [
-        {
-          id: item.id,
-          label: item.label,
-          category: item.category,
-          imageUrl: item.imageUrl,
-        },
-      ];
-    });
-
+    const sampled = shuffle(pool).slice(0, rows * itemsPerRow);
     const buckets: ShowcaseItem[][] = Array.from({ length: rows }, () => []);
-    usable.forEach((item, index) => {
+    sampled.forEach((item, index) => {
       buckets[index % rows].push(item);
     });
     return buckets;
-  }, [showcase, brokenImages, rows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showcase, rows]);
 
-  if (!rowItems || rowItems.every((row) => row.length === 0)) {
+  if (!rowSelection) {
+    return null;
+  }
+
+  const rowItems = rowSelection.map((items) =>
+    items.filter(
+      (item) => item.imageUrl && !brokenImages.has(item.imageUrl),
+    ),
+  );
+
+  if (rowItems.every((row) => row.length === 0)) {
     return null;
   }
 
