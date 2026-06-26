@@ -9,6 +9,7 @@ import { GameOverScreen } from "@/components/game/game-over-screen";
 import { GameRoomBoard } from "@/components/game/game-room-board";
 import { ContentWheel } from "@/components/home/content-wheel";
 import { GameSettingsPanel } from "@/components/lobby/game-settings-panel";
+import { PlayerAvatar } from "@/components/player-avatar";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
 import { convexApi } from "@/lib/convex-api";
 import { makeGameSettings } from "@/lib/game/rules";
@@ -303,6 +304,7 @@ export default function LobbyPage() {
                   <PlayerAvatar
                     displayName={player.displayName}
                     imageUrl={player.imageUrl}
+                    size="sm"
                   />
                   {player.isHost ? (
                     <Crown className="h-4 w-4 text-yellow-300" />
@@ -351,31 +353,6 @@ export default function LobbyPage() {
         updateSettings={updateSettings}
       />
     </Shell>
-  );
-}
-
-function PlayerAvatar({
-  displayName,
-  imageUrl,
-}: {
-  displayName: string;
-  imageUrl?: string;
-}) {
-  if (imageUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        alt=""
-        className="h-8 w-8 shrink-0 rounded-full bg-white object-contain"
-        src={imageUrl}
-      />
-    );
-  }
-
-  return (
-    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-950 font-black text-white">
-      {displayName.slice(0, 1).toUpperCase()}
-    </span>
   );
 }
 

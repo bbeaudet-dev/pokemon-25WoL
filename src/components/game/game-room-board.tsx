@@ -6,6 +6,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { GuestIdentity } from "@/lib/guest";
+import { PlayerAvatar } from "@/components/player-avatar";
 import { convexApi, type GameRoom } from "@/lib/convex-api";
 import { formatCategoryLabel } from "@/lib/game/rules";
 import { Scoreboard } from "./scoreboard";
@@ -448,14 +449,20 @@ function TargetRail({
                 {visible ? target.label : "Hidden"}
               </span>
               {solved ? (
-                <span className="text-xs">
-                  {target.solvedByPlayerIds
-                    .map(
-                      (playerId) =>
-                        players.find((player) => player.id === playerId)
-                          ?.displayName ?? "Player",
-                    )
-                    .join(", ")}
+                <span className="flex shrink-0 -space-x-1">
+                  {target.solvedByPlayerIds.map((playerId) => {
+                    const player = players.find((player) => player.id === playerId);
+                    const displayName = player?.displayName ?? "Player";
+                    return (
+                      <PlayerAvatar
+                        className="ring-2 ring-green-200"
+                        displayName={displayName}
+                        imageUrl={player?.imageUrl}
+                        key={playerId}
+                        size="sm"
+                      />
+                    );
+                  })}
                 </span>
               ) : null}
             </div>
@@ -570,6 +577,8 @@ function RoundEndOverlay({
   const roundResults = [...scores]
     .map((score) => ({
       ...score,
+      imageUrl: room.players.find((player) => player.id === score.playerId)
+        ?.imageUrl,
       displayName:
         room.players.find((player) => player.id === score.playerId)
           ?.displayName ?? "Player",
@@ -595,7 +604,14 @@ function RoundEndOverlay({
               className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3"
               key={result.playerId}
             >
-              <span className="font-bold">{result.displayName}</span>
+              <span className="flex min-w-0 items-center gap-3 font-bold">
+                <PlayerAvatar
+                  displayName={result.displayName}
+                  imageUrl={result.imageUrl}
+                  size="sm"
+                />
+                <span className="truncate">{result.displayName}</span>
+              </span>
               <span className="flex items-center gap-3">
                 <span
                   className={`font-display text-sm font-black ${

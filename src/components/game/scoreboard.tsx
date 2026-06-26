@@ -1,5 +1,6 @@
 import { Crown } from "lucide-react";
 import type { GameRoom } from "@/lib/convex-api";
+import { PlayerAvatar } from "@/components/player-avatar";
 import { WordImage } from "./word-image";
 
 export function Scoreboard({
@@ -51,10 +52,9 @@ export function Scoreboard({
       {room.players.map((player) => {
         const score = scores.find((entry) => entry.playerId === player.id);
         const totals = guessTotals.get(player.id) ?? { earned: 0, penalties: 0 };
-        const displayEarned =
-          player.id === hintmasterId ? projectedHintmasterScore : totals.earned;
+        const isHintmaster = player.id === hintmasterId;
         const netRoundScore =
-          player.id === hintmasterId
+          isHintmaster
             ? projectedHintmasterScore
             : score?.roundScore ?? 0;
         const latestGuess = guessesByPlayer.get(player.id);
@@ -81,6 +81,7 @@ export function Scoreboard({
                 </div>
               ) : null}
               <PlayerAvatar
+                className="ml-1"
                 displayName={player.displayName}
                 imageUrl={player.imageUrl}
               />
@@ -113,10 +114,22 @@ export function Scoreboard({
               </div>
               <div className="text-right">
                 <p className={`font-display text-sm font-black ${roundScoreClass}`}>
-                  +{displayEarned}
-                  {player.id !== hintmasterId && totals.penalties ? (
-                    <span className="ml-2 text-red-600">-{totals.penalties}</span>
-                  ) : null}
+                  {isHintmaster ? (
+                    projectedHintmasterScore >= 0 ? (
+                      `+${projectedHintmasterScore}`
+                    ) : (
+                      projectedHintmasterScore
+                    )
+                  ) : (
+                    <>
+                      +{totals.earned}
+                      {totals.penalties ? (
+                        <span className="ml-2 text-red-600">
+                          -{totals.penalties}
+                        </span>
+                      ) : null}
+                    </>
+                  )}
                 </p>
                 <p className="font-display text-2xl font-black">
                   {score?.totalScore ?? 0}
@@ -127,30 +140,5 @@ export function Scoreboard({
         );
       })}
     </section>
-  );
-}
-
-function PlayerAvatar({
-  displayName,
-  imageUrl,
-}: {
-  displayName: string;
-  imageUrl?: string;
-}) {
-  if (imageUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        alt=""
-        className="ml-1 h-10 w-10 shrink-0 rounded-full bg-white object-contain"
-        src={imageUrl}
-      />
-    );
-  }
-
-  return (
-    <div className="font-display ml-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
-      {displayName.slice(0, 1).toUpperCase()}
-    </div>
   );
 }
