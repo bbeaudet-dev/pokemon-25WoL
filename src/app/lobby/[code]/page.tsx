@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Check, Clipboard, Crown, LogOut, Play, Users } from "lucide-react";
+import { ArrowLeft, Check, Clipboard, Crown, Play, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,9 +11,12 @@ import { convexApi } from "@/lib/convex-api";
 import {
   advancedCategories,
   classicCategories,
+  formatCategoryLabel,
   makeGameSettings,
 } from "@/lib/game/rules";
-import type { GameMode } from "@/lib/game/types";
+import type { ContentCategory, GameMode } from "@/lib/game/types";
+
+const customCategoryOptions = advancedCategories;
 
 export default function LobbyPage() {
   const params = useParams<{ code: string }>();
@@ -151,6 +154,45 @@ export default function LobbyPage() {
     );
   }
 
+  async function handleTargetWordsPerRoundChange(value: number) {
+    if (!lobby) {
+      return;
+    }
+
+    await runAction(() =>
+      updateSettings({
+        lobbyId: lobby.id,
+        guestId: identity.guestId,
+        visibility: lobby.visibility,
+        settings: makeGameSettings({
+          ...lobby.settings,
+          mode: "custom",
+          targetWordsPerRound: value,
+        }),
+      }),
+    );
+  }
+
+  async function handleTargetSelectionChange(
+    targetSelection: "random" | "manual",
+  ) {
+    if (!lobby) {
+      return;
+    }
+
+    await runAction(() =>
+      updateSettings({
+        lobbyId: lobby.id,
+        guestId: identity.guestId,
+        visibility: lobby.visibility,
+        settings: makeGameSettings({
+          ...lobby.settings,
+          targetSelection,
+        }),
+      }),
+    );
+  }
+
   async function handleScoringWordLimitChange(value: number) {
     if (!lobby) {
       return;
@@ -205,7 +247,7 @@ export default function LobbyPage() {
     );
   }
 
-  async function handleModeChange(mode: Extract<GameMode, "classic" | "advanced">) {
+  async function handleModeChange(mode: GameMode) {
     if (!lobby) {
       return;
     }
@@ -219,7 +261,49 @@ export default function LobbyPage() {
           ...lobby.settings,
           mode,
           categories:
-            mode === "advanced" ? advancedCategories : classicCategories,
+            mode === "custom"
+              ? lobby.settings.categories.length
+                ? lobby.settings.categories
+                : advancedCategories
+              : mode === "advanced"
+                ? advancedCategories
+                : classicCategories,
+        }),
+      }),
+    );
+  }
+
+  async function handleCategoryToggle(category: ContentCategory) {
+    if (!lobby) {
+      return;
+    }
+
+    const categorySet = new Set(lobby.settings.categories);
+
+    if (categorySet.has(category)) {
+      categorySet.delete(category);
+    } else {
+      categorySet.add(category);
+    }
+
+    const categories = customCategoryOptions.filter((option) =>
+      categorySet.has(option),
+    );
+
+    if (categories.length === 0) {
+      setError("Custom mode needs at least one content category.");
+      return;
+    }
+
+    await runAction(() =>
+      updateSettings({
+        lobbyId: lobby.id,
+        guestId: identity.guestId,
+        visibility: lobby.visibility,
+        settings: makeGameSettings({
+          ...lobby.settings,
+          mode: "custom",
+          categories,
         }),
       }),
     );
@@ -324,7 +408,11 @@ export default function LobbyPage() {
             {currentPlayer ? (
               <div className={`grid gap-3 ${isHost ? "sm:grid-cols-2" : ""}`}>
                 <button
-                  className="rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black"
+                  className={`rounded-2xl px-5 py-4 font-black text-black transition ${
+                    currentPlayer.isReady
+                      ? "bg-orange-500 hover:bg-orange-400"
+                      : "animate-pulse bg-orange-400 hover:bg-orange-300"
+                  }`}
                   onClick={() =>
                     runAction(() =>
                       setReady({
@@ -339,7 +427,7 @@ export default function LobbyPage() {
                 </button>
                 {isHost ? (
                   <button
-                    className="rounded-2xl bg-green-300 px-5 py-4 font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
+                    className="animate-pulse rounded-2xl bg-green-300 px-5 py-4 font-black text-black transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-green-300"
                     disabled={!allReady}
                     onClick={() =>
                       runAction(() =>
@@ -424,16 +512,16 @@ export default function LobbyPage() {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
               Mode
             </p>
             {isHost ? (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {(["classic", "advanced"] as const).map((mode) => (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(["classic", "advanced", "custom"] as const).map((mode) => (
                   <button
-                    className={`rounded-xl px-3 py-2 font-black capitalize ${
+                    className={`min-w-24 rounded-xl px-3 py-2 font-black capitalize ${
                       lobby.settings.mode === mode
                         ? "bg-yellow-300 text-black"
                         : "bg-black/30 text-slate-200"
@@ -451,13 +539,57 @@ export default function LobbyPage() {
               </p>
             )}
           </div>
-          <SettingCard
-            label="Targets"
-            value={`${lobby.settings.targetWordsPerRound} words`}
-          />
           <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Word Limits
+              Targets
+            </p>
+            {isHost && lobby.settings.mode === "custom" ? (
+              <label className="mt-3 flex items-center gap-3 text-sm font-bold text-slate-200">
+                <input
+                  aria-label="Target words per round"
+                  className="w-16 rounded-xl bg-black/30 px-3 py-2 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+                  min={1}
+                  max={25}
+                  type="number"
+                  value={lobby.settings.targetWordsPerRound}
+                  onChange={(event) =>
+                    handleTargetWordsPerRoundChange(
+                      Number(event.currentTarget.value),
+                    )
+                  }
+                />
+                <span>words</span>
+              </label>
+            ) : (
+              <p className="mt-2 text-xl font-black">
+                {lobby.settings.targetWordsPerRound} words
+              </p>
+            )}
+            {isHost ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(["random", "manual"] as const).map((selection) => (
+                  <button
+                    className={`rounded-full px-3 py-2 text-sm font-black capitalize transition ${
+                      lobby.settings.targetSelection === selection
+                        ? "bg-yellow-300 text-black hover:bg-yellow-400"
+                        : "bg-black/30 text-slate-300 hover:bg-yellow-200 hover:text-black"
+                    }`}
+                    key={selection}
+                    onClick={() => handleTargetSelectionChange(selection)}
+                  >
+                    {selection}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm font-bold capitalize text-slate-400">
+                {lobby.settings.targetSelection} selection
+              </p>
+            )}
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              Hint Limits
             </p>
             {isHost ? (
               <div className="mt-3">
@@ -519,25 +651,72 @@ export default function LobbyPage() {
               </p>
             )}
           </div>
+          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              Hintmaster Turns
+            </p>
+            {isHost ? (
+              <label className="mt-3 flex items-center gap-3 text-sm font-bold text-slate-200">
+                <input
+                  aria-label="Times each player is Hintmaster"
+                  className="w-16 rounded-xl bg-black/30 px-3 py-2 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+                  min={1}
+                  max={5}
+                  type="number"
+                  value={lobby.settings.hintGiverTurnsPerPlayer}
+                  onChange={(event) =>
+                    handleTurnsChange(Number(event.currentTarget.value))
+                  }
+                />
+                <span>per player</span>
+              </label>
+            ) : (
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-200">
+                {lobby.settings.hintGiverTurnsPerPlayer} per player
+              </p>
+            )}
+          </div>
         </div>
 
-        {isHost ? (
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 rounded-2xl bg-white/10 px-4 py-3 font-bold">
-              Times each player is Hintmaster
-              <input
-                className="rounded-xl bg-black/30 px-3 py-2"
-                min={1}
-                max={5}
-                type="number"
-                value={lobby.settings.hintGiverTurnsPerPlayer}
-                onChange={(event) =>
-                  handleTurnsChange(Number(event.currentTarget.value))
-                }
-              />
-            </label>
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              Categories
+            </p>
+            {lobby.settings.mode !== "custom" ? (
+              <p className="text-xs font-bold text-slate-500">
+                Switch to Custom to edit
+              </p>
+            ) : null}
           </div>
-        ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {customCategoryOptions.map((category) => {
+              const isSelected = lobby.settings.categories.includes(category);
+              const canEdit = isHost && lobby.settings.mode === "custom";
+
+              return (
+                <button
+                  className={`rounded-full px-3 py-2 text-sm font-black transition ${
+                    isSelected
+                      ? "bg-yellow-300 text-black ring-2 ring-yellow-100/70 hover:ring-4"
+                      : "bg-black/30 text-slate-300"
+                  } ${
+                    canEdit
+                      ? isSelected
+                        ? ""
+                        : "hover:bg-white/15 hover:text-white"
+                      : "cursor-not-allowed opacity-60"
+                  }`}
+                  disabled={!canEdit}
+                  key={category}
+                  onClick={() => handleCategoryToggle(category)}
+                >
+                  {formatCategoryLabel(category)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </section>
     </Shell>
   );
@@ -556,11 +735,11 @@ function Shell({
     <main className="mx-auto min-h-screen w-full max-w-6xl px-5 py-8">
       {onLeave ? (
         <button
-          className="mb-6 inline-flex items-center gap-2 text-sm font-bold text-yellow-300"
+          className="mb-6 inline-flex items-center gap-2 text-sm font-bold text-red-500 transition hover:text-red-400 disabled:opacity-60"
           disabled={isLeaving}
           onClick={onLeave}
         >
-          <LogOut className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" />
           {isLeaving ? "Leaving..." : "Leave Lobby"}
         </button>
       ) : (
@@ -602,13 +781,3 @@ function VisibilityToggle({
   );
 }
 
-function SettingCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-        {label}
-      </p>
-      <p className="mt-2 text-xl font-black capitalize">{value}</p>
-    </div>
-  );
-}

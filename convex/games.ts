@@ -50,6 +50,20 @@ async function recordEvent(ctx: any, event: Record<string, unknown>) {
   });
 }
 
+function toTargetWord(word: any) {
+  return {
+    contentId: word._id,
+    label: word.label,
+    normalizedLabel: word.normalizedLabel,
+    category: word.category,
+    imageUrl: word.imageUrl,
+    source: word.source,
+    sourceId: word.sourceId,
+    sourceUrl: word.sourceUrl,
+    solvedByPlayerIds: [],
+  };
+}
+
 async function selectTargetWords(ctx: any, settings: any) {
   const contentByCategory = await Promise.all(
     settings.categories.map((category: string) =>
@@ -67,19 +81,7 @@ async function selectTargetWords(ctx: any, settings: any) {
     );
   }
 
-  return selectRandomItems(content, settings.targetWordsPerRound).map(
-    (word: any) => ({
-      contentId: word._id,
-      label: word.label,
-      normalizedLabel: word.normalizedLabel,
-      category: word.category,
-      imageUrl: word.imageUrl,
-      source: word.source,
-      sourceId: word.sourceId,
-      sourceUrl: word.sourceUrl,
-      solvedByPlayerIds: [],
-    }),
-  );
+  return selectRandomItems(content, settings.targetWordsPerRound).map(toTargetWord);
 }
 
 async function createRound(ctx: any, game: any, hintGiverPlayerId: string) {
@@ -294,6 +296,49 @@ export const rerollTargets = mutationGeneric({
       playerId: player._id,
       type: "round.rerolled",
       payload: { cost },
+    });
+  },
+});
+
+export const setManualTarget = mutationGeneric({
+  args: {
+    roundId: v.id("rounds"),
+    guestId: v.string(),
+    targetIndex: v.number(),
+    contentId: v.id("content"),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+    const content = await ctx.db.get(args.contentId);
+
+    if (!round || !player || !content || round.hintGiverPlayerId !== player._id) {
+      throw new Error("Unable to set target.");
+    }
+
+    if (round.status !== "setup") {
+      throw new Error("Targets have already been confirmed.");
+    }
+
+    if (
+      args.targetIndex < 0 ||
+      args.targetIndex >= round.targetWords.length ||
+      !Number.isInteger(args.targetIndex)
+    ) {
+      throw new Error("Target slot not found.");
+    }
+
+    const targetWords = [...round.targetWords];
+    targetWords[args.targetIndex] = toTargetWord(content);
+
+    await ctx.db.patch(round._id, { targetWords });
+    await recordEvent(ctx, {
+      lobbyId: round.lobbyId,
+      gameId: round.gameId,
+      roundId: round._id,
+      playerId: player._id,
+      type: "round.target_set",
+      payload: { targetIndex: args.targetIndex, label: content.label },
     });
   },
 });

@@ -24,6 +24,25 @@ export const advancedCategories: ContentCategory[] = [
   "ability",
 ];
 
+export const categoryLabels: Record<ContentCategory, string> = {
+  ability: "Abilities",
+  badge: "Badges",
+  game: "Games",
+  gym_leader: "Gym Leaders",
+  item: "Items",
+  move: "Moves",
+  pokemon: "Pokemon",
+  professor: "Professors",
+  region: "Regions",
+  terminology: "Terminology",
+  town: "Towns",
+  type: "Types",
+};
+
+export function formatCategoryLabel(category: ContentCategory) {
+  return categoryLabels[category];
+}
+
 export const defaultGameSettings: GameSettings = {
   mode: "classic",
   isPrivate: true,

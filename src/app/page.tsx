@@ -7,6 +7,7 @@ import { FormEvent, useState } from "react";
 import { convexApi } from "@/lib/convex-api";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
 import { ContentWheel } from "@/components/home/content-wheel";
+import { BuyMeACoffee } from "@/components/support/buy-me-a-coffee";
 
 export default function HomePage() {
   const router = useRouter();
@@ -78,7 +79,7 @@ export default function HomePage() {
               <span className="text-yellow-300">Pokemon Edition!</span>
             </span>
           </h1>
-          <p className="mt-4 max-w-2xl text-lg text-slate-200">
+          <p className="mt-4 max-w-4xl text-lg text-slate-200">
             Get your friends to guess your target words with as few hints as
             possible.
           </p>
@@ -212,11 +213,14 @@ export default function HomePage() {
         </aside>
       </section>
 
-      <footer className="mt-auto pt-8 text-center text-[11px] italic leading-relaxed text-slate-500">
-        &ldquo;I give full permission to anybody out there to turn this into a
-        website in their free time.&rdquo;
-        <br />
-        &mdash; ZaneGames
+      <footer className="mt-auto flex flex-col items-center gap-3 pt-8">
+        <p className="text-center text-[11px] italic leading-relaxed text-slate-500">
+          &ldquo;I give full permission to anybody out there to turn this into a
+          website in their free time.&rdquo;
+          <br />
+          &mdash; ZaneGames
+        </p>
+        <BuyMeACoffee />
       </footer>
       </main>
     </>
