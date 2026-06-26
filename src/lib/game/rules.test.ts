@@ -60,6 +60,17 @@ describe("calculateHintGiverScore", () => {
     expect(calculateHintGiverScore(25, settings)).toBe(0);
     expect(calculateHintGiverScore(27, settings)).toBe(-2);
   });
+
+  it("applies the points per remaining word setting", () => {
+    const settings = {
+      scoringWordLimit: 25,
+      hardWordLimit: 40,
+      pointsPerRemainingWord: 2,
+    };
+
+    expect(calculateHintGiverScore(5, settings)).toBe(40);
+    expect(calculateHintGiverScore(27, settings)).toBe(-4);
+  });
 });
 
 describe("scoreGuess", () => {

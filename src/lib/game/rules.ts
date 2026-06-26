@@ -31,6 +31,7 @@ export const defaultGameSettings: GameSettings = {
   targetWordsPerRound: 10,
   scoringWordLimit: 25,
   hardWordLimit: 40,
+  pointsPerRemainingWord: 1,
   pointsPerCorrectGuess: 1,
   categories: classicCategories,
   targetSelection: "random",
@@ -77,10 +78,14 @@ export function getTotalRerollWordCost(rerollCount: number) {
 
 export function calculateHintGiverScore(
   usedWordCount: number,
-  settings: Pick<GameSettings, "scoringWordLimit" | "hardWordLimit">,
+  settings: Pick<GameSettings, "scoringWordLimit" | "hardWordLimit"> &
+    Partial<Pick<GameSettings, "pointsPerRemainingWord">>,
 ) {
   const cappedWordCount = Math.min(usedWordCount, settings.hardWordLimit);
-  return settings.scoringWordLimit - cappedWordCount;
+  return (
+    (settings.scoringWordLimit - cappedWordCount) *
+    (settings.pointsPerRemainingWord ?? 1)
+  );
 }
 
 export function isRoundOutOfWords(

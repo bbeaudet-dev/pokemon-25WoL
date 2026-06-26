@@ -29,6 +29,7 @@ export type GameSettings = {
   targetWordsPerRound: number;
   scoringWordLimit: number;
   hardWordLimit: number;
+  pointsPerRemainingWord: number;
   pointsPerCorrectGuess: number;
   categories: ContentCategory[];
   targetSelection: "random" | "manual";

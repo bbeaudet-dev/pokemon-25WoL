@@ -187,6 +187,24 @@ export default function LobbyPage() {
     );
   }
 
+  async function handlePointsPerRemainingWordChange(value: number) {
+    if (!lobby) {
+      return;
+    }
+
+    await runAction(() =>
+      updateSettings({
+        lobbyId: lobby.id,
+        guestId: identity.guestId,
+        visibility: lobby.visibility,
+        settings: makeGameSettings({
+          ...lobby.settings,
+          pointsPerRemainingWord: value,
+        }),
+      }),
+    );
+  }
+
   async function handleModeChange(mode: Extract<GameMode, "classic" | "advanced">) {
     if (!lobby) {
       return;
@@ -442,15 +460,11 @@ export default function LobbyPage() {
               Word Limits
             </p>
             {isHost ? (
-              <div className="mt-3 grid gap-3">
-                <p className="text-sm font-bold leading-6 text-slate-200">
-                  {lobby.settings.scoringWordLimit} words, 1 point for each
-                  remaining, {lobby.settings.hardWordLimit} maximum words
-                </p>
-                <label className="grid gap-1 text-sm font-bold">
-                  Scoring words
+              <div className="mt-3">
+                <p className="text-sm font-bold leading-9 text-slate-200">
                   <input
-                    className="rounded-xl bg-black/30 px-3 py-2"
+                    aria-label="Scoring word limit"
+                    className="mx-1 inline w-14 rounded-xl bg-black/30 px-2 py-1 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
                     min={1}
                     max={50}
                     type="number"
@@ -461,11 +475,27 @@ export default function LobbyPage() {
                       )
                     }
                   />
-                </label>
-                <label className="grid gap-1 text-sm font-bold">
-                  Maximum words
+                  words,
                   <input
-                    className="rounded-xl bg-black/30 px-3 py-2"
+                    aria-label="Points per remaining word"
+                    className="mx-1 inline w-12 rounded-xl bg-black/30 px-2 py-1 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+                    min={1}
+                    max={10}
+                    type="number"
+                    value={lobby.settings.pointsPerRemainingWord ?? 1}
+                    onChange={(event) =>
+                      handlePointsPerRemainingWordChange(
+                        Number(event.currentTarget.value),
+                      )
+                    }
+                  />
+                  {(lobby.settings.pointsPerRemainingWord ?? 1) === 1
+                    ? " point"
+                    : " points"}{" "}
+                  for each remaining,
+                  <input
+                    aria-label="Maximum word limit"
+                    className="mx-1 inline w-14 rounded-xl bg-black/30 px-2 py-1 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
                     min={lobby.settings.scoringWordLimit}
                     max={50}
                     type="number"
@@ -474,12 +504,18 @@ export default function LobbyPage() {
                       handleHardWordLimitChange(Number(event.currentTarget.value))
                     }
                   />
-                </label>
+                  maximum words
+                </p>
               </div>
             ) : (
               <p className="mt-2 text-sm font-bold leading-6 text-slate-200">
-                {lobby.settings.scoringWordLimit} words, 1 point for each
-                remaining, {lobby.settings.hardWordLimit} maximum words
+                {lobby.settings.scoringWordLimit} words,{" "}
+                {lobby.settings.pointsPerRemainingWord ?? 1}{" "}
+                {(lobby.settings.pointsPerRemainingWord ?? 1) === 1
+                  ? "point"
+                  : "points"}{" "}
+                for each remaining,{" "}
+                {lobby.settings.hardWordLimit} maximum words
               </p>
             )}
           </div>

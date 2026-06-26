@@ -127,8 +127,10 @@ function Scoreboard({
   const projectedHintmasterScore =
     room.round && room.game
       ? Math.max(
-          room.game.settings.scoringWordLimit - room.round.hintWords.length,
-          room.game.settings.scoringWordLimit - room.game.settings.hardWordLimit,
+          (room.game.settings.scoringWordLimit - room.round.hintWords.length) *
+            (room.game.settings.pointsPerRemainingWord ?? 1),
+          (room.game.settings.scoringWordLimit - room.game.settings.hardWordLimit) *
+            (room.game.settings.pointsPerRemainingWord ?? 1),
         )
       : 0;
   const guessesByPlayer = new Map(

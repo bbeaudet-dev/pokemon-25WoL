@@ -27,6 +27,7 @@ const gameSettingsValidator = v.object({
   targetWordsPerRound: v.number(),
   scoringWordLimit: v.number(),
   hardWordLimit: v.number(),
+  pointsPerRemainingWord: v.optional(v.number()),
   pointsPerCorrectGuess: v.number(),
   categories: v.array(contentCategory),
   targetSelection: v.union(v.literal("random"), v.literal("manual")),
