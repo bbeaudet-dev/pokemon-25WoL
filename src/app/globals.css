@@ -48,3 +48,18 @@ textarea {
 .clip-tag {
   clip-path: polygon(0 0, calc(100% - 0.75rem) 0, 100% 50%, calc(100% - 0.75rem) 100%, 0 100%, 0.75rem 50%);
 }
+
+@keyframes ready-up-pulse {
+  0%,
+  100% {
+    background-color: #fb923c;
+  }
+
+  50% {
+    background-color: #facc15;
+  }
+}
+
+.ready-up-pulse {
+  animation: ready-up-pulse 1.25s ease-in-out infinite;
+}

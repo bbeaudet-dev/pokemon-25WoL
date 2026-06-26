@@ -193,7 +193,7 @@ export const create = mutationGeneric({
 
     const lobbyId = await ctx.db.insert("lobbies", {
       code,
-      visibility: "private",
+      visibility: "public",
       status: "open",
       hostPlayerId: playerId,
       settings,

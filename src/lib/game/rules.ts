@@ -45,7 +45,7 @@ export function formatCategoryLabel(category: ContentCategory) {
 
 export const defaultGameSettings: GameSettings = {
   mode: "classic",
-  isPrivate: true,
+  isPrivate: false,
   hintGiverTurnsPerPlayer: 1,
   targetWordsPerRound: 10,
   scoringWordLimit: 25,

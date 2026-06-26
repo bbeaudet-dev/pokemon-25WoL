@@ -244,7 +244,7 @@ export default function LobbyPage() {
                   className={`rounded-2xl px-5 py-4 font-black text-black transition ${
                     currentPlayer.isReady
                       ? "bg-orange-500 hover:bg-orange-400"
-                      : "animate-pulse bg-orange-400 hover:bg-orange-300 [animation-duration:2.5s]"
+                      : "ready-up-pulse bg-orange-400 hover:bg-yellow-400"
                   }`}
                   onClick={() =>
                     runAction(() =>

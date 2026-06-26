@@ -162,10 +162,10 @@ export function GameSettingsPanel({
             <div className="mt-3 flex flex-wrap gap-2">
               {(["random", "manual"] as const).map((selection) => (
                 <button
-                  className={`rounded-full px-3 py-2 text-sm font-black capitalize transition ${
+                  className={`min-w-24 rounded-xl px-3 py-2 font-black capitalize ${
                     lobby.settings.targetSelection === selection
-                      ? "bg-yellow-300 text-black hover:bg-yellow-400"
-                      : "bg-black/30 text-slate-300 hover:bg-yellow-200 hover:text-black"
+                      ? "bg-yellow-300 text-black"
+                      : "bg-black/30 text-slate-200"
                   }`}
                   key={selection}
                   onClick={() =>
