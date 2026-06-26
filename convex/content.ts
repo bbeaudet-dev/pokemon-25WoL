@@ -124,11 +124,9 @@ export const search = queryGeneric({
 });
 
 const showcaseCategories = [
-  { category: "pokemon", weight: 3 },
-  { category: "item", weight: 3 },
-  { category: "badge", weight: 2 },
-  { category: "professor", weight: 1 },
-  { category: "gym_leader", weight: 1 },
+  { category: "pokemon", weight: 20 },
+  { category: "item", weight: 24 },
+  { category: "badge", weight: 1 },
 ] as const;
 
 // Returns a deterministic, weighted pool of image-backed showcase content. Keeping this
@@ -231,6 +229,39 @@ export const removeManyBySourceIds = mutationGeneric({
         word.source === args.source &&
         word.sourceId &&
         sourceIds.has(word.sourceId),
+    );
+
+    await Promise.all(removable.map((word) => ctx.db.delete(word._id)));
+
+    await ctx.db.insert("events", {
+      type: "content.removed",
+      payload: {
+        count: removable.length,
+        category: args.category,
+        source: args.source,
+      },
+      createdAt: Date.now(),
+    });
+
+    return { count: removable.length };
+  },
+});
+
+export const removeManyByCategoryLabels = mutationGeneric({
+  args: {
+    category: contentCategory,
+    source: v.union(v.literal("pokeapi"), v.literal("curated")),
+    labels: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const normalizedLabels = new Set(args.labels.map(normalizeWord));
+    const words = await ctx.db
+      .query("content")
+      .withIndex("by_category", (q) => q.eq("category", args.category))
+      .collect();
+    const removable = words.filter(
+      (word) =>
+        word.source === args.source && normalizedLabels.has(word.normalizedLabel),
     );
 
     await Promise.all(removable.map((word) => ctx.db.delete(word._id)));

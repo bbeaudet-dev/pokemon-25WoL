@@ -7,7 +7,7 @@ import { convexApi } from "@/lib/convex-api";
 type ShowcaseItem = {
   id: string;
   label: string;
-  category: "pokemon" | "item" | "badge" | "professor" | "gym_leader";
+  category: "pokemon" | "item" | "badge";
   imageUrl?: string;
 };
 
@@ -179,8 +179,6 @@ function WheelCard({
       ? "from-yellow-300/20 to-yellow-300/0"
       : item.category === "badge"
         ? "from-sky-300/25 to-sky-300/0"
-        : item.category === "professor" || item.category === "gym_leader"
-          ? "from-emerald-300/25 to-emerald-300/0"
         : "from-purple-400/20 to-purple-400/0";
 
   return (

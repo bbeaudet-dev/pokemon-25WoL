@@ -51,6 +51,12 @@ const removeManyBySourceIds = makeFunctionReference<
   { count: number }
 >("content:removeManyBySourceIds");
 
+const removeManyByCategoryLabels = makeFunctionReference<
+  "mutation",
+  { category: ContentCategory; source: WordSource; labels: string[] },
+  { count: number }
+>("content:removeManyByCategoryLabels");
+
 const endpointConfigs: Array<{
   endpoint: string;
   category: ContentCategory;
@@ -397,7 +403,7 @@ async function imageUrlFor(
   }
 
   if (category === "type" && sourceId) {
-    return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/types/generation-viii/sword-shield/${sourceId}.png`;
+    return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/types/generation-ix/scarlet-violet/${sourceId}.png`;
   }
 
   if (category === "region" && label) {
@@ -563,6 +569,7 @@ async function main() {
   const duplicates: string[] = [];
   const missingImages = new Map<ContentCategory, number>();
   const removedSourceIds = new Map<ContentCategory, Set<string>>();
+  const removedLabels = new Map<ContentCategory, Set<string>>();
 
   for (const config of endpointConfigs) {
     const list = await fetchEndpoint(config.endpoint);
@@ -599,6 +606,14 @@ async function main() {
         }
 
         const label = labelFor(result.name, config.labelPrefix, config.labelSuffix);
+        if (config.labelSuffix) {
+          const legacyLabel = labelFor(result.name, config.labelPrefix);
+          const categoryLabels =
+            removedLabels.get(config.category) ?? new Set<string>();
+          categoryLabels.add(legacyLabel);
+          removedLabels.set(config.category, categoryLabels);
+        }
+
         const word: SeedWord = {
           label,
           category: config.category,
@@ -698,6 +713,15 @@ async function main() {
       sourceIds: Array.from(sourceIds),
     });
     console.log(`Removed ${result.count} excluded ${category} records.`);
+  }
+
+  for (const [category, labels] of removedLabels) {
+    const result = await client.mutation(removeManyByCategoryLabels, {
+      category,
+      source: "pokeapi",
+      labels: Array.from(labels),
+    });
+    console.log(`Removed ${result.count} legacy ${category} label records.`);
   }
 }
 
