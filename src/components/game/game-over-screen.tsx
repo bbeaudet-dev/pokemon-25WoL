@@ -15,7 +15,8 @@ import type { GuestIdentity } from "@/lib/guest";
 
 const BUY_ME_A_COFFEE_URL = "https://buymeacoffee.com/benbeaudet";
 const GITHUB_URL = "https://github.com/bbeaudet-dev/pokemon-25WoL";
-const FEEDBACK_URL = "https://github.com/bbeaudet-dev/pokemon-25WoL/issues/new";
+const FEEDBACK_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLScTsZ4dWwLgLwfDaOZYTmbj6t6GScRlnrMcs7TKB5fpbOkrIw/viewform";
 
 type GameOverScreenProps = {
   code: string;
