@@ -7,7 +7,7 @@ import { convexApi } from "@/lib/convex-api";
 type ShowcaseItem = {
   id: string;
   label: string;
-  category: "pokemon" | "item";
+  category: "pokemon" | "item" | "badge";
   imageUrl?: string;
 };
 
@@ -177,18 +177,19 @@ function WheelCard({
   const accent =
     item.category === "pokemon"
       ? "from-yellow-300/20 to-yellow-300/0"
-      : "from-purple-400/20 to-purple-400/0";
+      : item.category === "badge"
+        ? "from-sky-300/25 to-sky-300/0"
+        : "from-purple-400/20 to-purple-400/0";
 
   return (
     <div className="flex w-24 shrink-0 flex-col items-center gap-2">
       <div
-        className={`grid h-20 w-20 place-items-center rounded-2xl border border-white/10 bg-gradient-to-b ${accent} p-2`}
+        className={`grid h-20 w-20 place-items-center rounded-2xl border border-white/10 bg-linear-to-b ${accent} p-2`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt=""
           className="h-full w-full object-contain"
-          loading="lazy"
           src={item.imageUrl}
           onError={() => item.imageUrl && onImageError(item.imageUrl)}
         />
