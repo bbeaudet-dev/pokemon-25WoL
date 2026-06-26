@@ -124,9 +124,13 @@ export const search = queryGeneric({
 });
 
 const showcaseCategories = [
-  { category: "pokemon", weight: 20 },
-  { category: "item", weight: 20 },
-  { category: "badge", weight: 1 },
+  { category: "pokemon", weight: 60 },
+  { category: "item", weight: 12 },
+  { category: "badge", weight: 6 },
+  { category: "type", weight: 3 },
+  { category: "professor", weight: 4 },
+  { category: "gym_leader", weight: 8 },
+  { category: "game", weight: 7 },
 ] as const;
 
 // Returns a deterministic, weighted pool of image-backed showcase content. Keeping this

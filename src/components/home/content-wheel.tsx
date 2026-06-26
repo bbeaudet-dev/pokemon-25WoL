@@ -3,11 +3,15 @@
 import { useQuery } from "convex/react";
 import { useMemo, useState } from "react";
 import { convexApi } from "@/lib/convex-api";
+import type { ContentCategory } from "@/lib/game/types";
 
 type ShowcaseItem = {
   id: string;
   label: string;
-  category: "pokemon" | "item" | "badge";
+  category: Extract<
+    ContentCategory,
+    "badge" | "game" | "gym_leader" | "item" | "pokemon" | "professor" | "type"
+  >;
   imageUrl?: string;
 };
 
@@ -179,7 +183,13 @@ function WheelCard({
       ? "from-yellow-300/20 to-yellow-300/0"
       : item.category === "badge"
         ? "from-sky-300/25 to-sky-300/0"
-        : "from-purple-400/20 to-purple-400/0";
+        : item.category === "type"
+          ? "from-emerald-300/25 to-emerald-300/0"
+          : item.category === "game"
+            ? "from-red-300/25 to-red-300/0"
+            : item.category === "gym_leader" || item.category === "professor"
+              ? "from-orange-300/25 to-orange-300/0"
+              : "from-purple-400/20 to-purple-400/0";
 
   return (
     <div className="flex w-24 shrink-0 flex-col items-center gap-2">
