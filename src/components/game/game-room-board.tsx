@@ -34,6 +34,7 @@ export function GameRoomBoard({
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isEndTurnConfirmOpen, setIsEndTurnConfirmOpen] = useState(false);
   const [isEndingTurn, setIsEndingTurn] = useState(false);
+  const [isLeaveGameConfirmOpen, setIsLeaveGameConfirmOpen] = useState(false);
   const round = room.round;
   const currentPlayer = room.players.find(
     (player) => player.guestId === identity.guestId,
@@ -122,6 +123,12 @@ export function GameRoomBoard({
           onConfirm={handleEndTurn}
         />
       ) : null}
+      {isLeaveGameConfirmOpen ? (
+        <LeaveGameConfirmModal
+          onCancel={() => setIsLeaveGameConfirmOpen(false)}
+          onConfirm={onLeave}
+        />
+      ) : null}
       {error ? (
         <div className="rounded-2xl border border-red-300/30 bg-red-500/20 px-4 py-3 text-red-100">
           {error}
@@ -171,14 +178,51 @@ export function GameRoomBoard({
           ) : null}
           <button
             className="flex items-center gap-2 text-left text-red-500 transition hover:text-red-400"
-            onClick={onLeave}
+            onClick={() => setIsLeaveGameConfirmOpen(true)}
           >
             <ArrowLeft className="h-4 w-4" />
-            Leave Lobby
+            Leave Game
           </button>
         </div>
       </footer>
     </main>
+  );
+}
+
+function LeaveGameConfirmModal({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-5 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-4xl border border-white/10 bg-slate-950 p-7 shadow-2xl">
+        <p className="text-sm font-bold uppercase tracking-[0.3em] text-red-300">
+          Leave Game
+        </p>
+        <h2 className="mt-2 text-3xl font-black">Leave this game?</h2>
+        <p className="mt-3 text-slate-300">
+          For now, leaving removes you from the game. Rejoining and disconnected
+          player states are planned but not built yet.
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button
+            className="rounded-2xl bg-white/10 px-5 py-4 font-black text-white transition hover:bg-white/15"
+            onClick={onCancel}
+          >
+            Stay
+          </button>
+          <button
+            className="rounded-2xl bg-red-500 px-5 py-4 font-black text-white transition hover:bg-red-400"
+            onClick={onConfirm}
+          >
+            Leave Game
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -179,6 +179,28 @@ describe("selectTargetCandidates", () => {
 
     expect(selected.filter((word) => word.category === "item")).toHaveLength(2);
   });
+
+  it("soft caps moves while enough non-move content exists", () => {
+    const selected = selectTargetCandidates(
+      [
+        makeWord("pokemon", "Sceptile"),
+        makeWord("move", "Thunderbolt"),
+        makeWord("move", "Shadow Mist"),
+        makeWord("move", "Teatime"),
+        makeWord("region", "Kanto Region"),
+        makeWord("game", "Pokemon Scarlet"),
+        makeWord("type", "Fire Type"),
+        makeWord("ability", "Static (Ability)"),
+        makeWord("town", "Pallet Town"),
+        makeWord("professor", "Professor Oak"),
+        makeWord("badge", "Boulder Badge"),
+      ],
+      10,
+      () => 0,
+    );
+
+    expect(selected.filter((word) => word.category === "move")).toHaveLength(2);
+  });
 });
 
 describe("hintViolatesTargetWords", () => {

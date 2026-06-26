@@ -58,10 +58,11 @@ const endpointConfigs: Array<{
   {
     endpoint: "type",
     category: "type",
+    labelSuffix: "Type",
     filter: (resource) => !["unknown", "shadow"].includes(resource.name),
   },
   { endpoint: "move", category: "move" },
-  { endpoint: "ability", category: "ability" },
+  { endpoint: "ability", category: "ability", labelSuffix: "(Ability)" },
   { endpoint: "region", category: "region", labelSuffix: "Region" },
   { endpoint: "location", category: "town" },
   { endpoint: "version", category: "game", labelPrefix: "Pokemon" },

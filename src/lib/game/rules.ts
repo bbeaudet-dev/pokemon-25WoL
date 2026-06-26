@@ -182,6 +182,7 @@ export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
   const selected: T[] = [];
   const remaining = [...items];
   const maxItemTargets = Math.max(1, Math.floor(count * 0.2));
+  const maxMoveTargets = Math.max(1, Math.floor(count * 0.2));
   const anchorChance = 0.7;
 
   function takeRandomFromCategory(category: ContentCategory) {
@@ -225,6 +226,13 @@ export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
       (selectedItem) => selectedItem.category === "item",
     ).length;
     if (item.category === "item" && itemCount >= maxItemTargets) {
+      continue;
+    }
+
+    const moveCount = selected.filter(
+      (selectedItem) => selectedItem.category === "move",
+    ).length;
+    if (item.category === "move" && moveCount >= maxMoveTargets) {
       continue;
     }
 

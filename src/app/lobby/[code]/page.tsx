@@ -9,7 +9,6 @@ import { GameOverScreen } from "@/components/game/game-over-screen";
 import { GameRoomBoard } from "@/components/game/game-room-board";
 import { ContentWheel } from "@/components/home/content-wheel";
 import { GameSettingsPanel } from "@/components/lobby/game-settings-panel";
-import { BuyMeACoffee } from "@/components/support/buy-me-a-coffee";
 import { useGuestIdentity } from "@/hooks/use-guest-identity";
 import { convexApi } from "@/lib/convex-api";
 import { makeGameSettings } from "@/lib/game/rules";
@@ -382,9 +381,6 @@ function Shell({
           </Link>
         )}
         {children}
-        <footer className="mt-auto flex justify-center pt-10">
-          <BuyMeACoffee />
-        </footer>
       </main>
     </>
   );
