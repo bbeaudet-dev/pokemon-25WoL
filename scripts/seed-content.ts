@@ -35,7 +35,7 @@ type ItemSeedData = {
 };
 
 type CuratedImageSource = {
-  provider: "fandom-page-image";
+  provider: "bulbapedia-page-image" | "fandom-page-image";
   title: string;
 };
 
@@ -390,6 +390,7 @@ function idFromUrl(url: string) {
 async function imageUrlFor(
   category: ContentCategory,
   sourceId?: string,
+  label?: string,
 ) {
   if (category === "pokemon" && sourceId) {
     return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${sourceId}.png`;
@@ -399,7 +400,41 @@ async function imageUrlFor(
     return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/types/generation-viii/sword-shield/${sourceId}.png`;
   }
 
+  if (category === "region" && label) {
+    return await pageImageUrlFor({
+      provider: "bulbapedia-page-image",
+      title: label.replace(/ Region$/, ""),
+    });
+  }
+
   return undefined;
+}
+
+async function pageImageUrlFor(source: CuratedImageSource) {
+  const apiUrl =
+    source.provider === "bulbapedia-page-image"
+      ? "https://bulbapedia.bulbagarden.net/w/api.php"
+      : "https://pokemon.fandom.com/api.php";
+  const params = new URLSearchParams({
+    action: "query",
+    titles: source.title,
+    prop: "pageimages",
+    format: "json",
+    pithumbsize: "500",
+    redirects: "1",
+  });
+  const response = await fetchJson<{
+    query?: {
+      pages?: Record<
+        string,
+        { thumbnail?: { source?: string; width?: number; height?: number } }
+      >;
+    };
+  }>(`${apiUrl}?${params.toString()}`);
+
+  return Object.values(response.query?.pages ?? {}).find(
+    (page) => page.thumbnail?.source,
+  )?.thumbnail?.source;
 }
 
 async function curatedImageUrlFor(word: SeedWord) {
@@ -417,29 +452,7 @@ async function curatedImageUrlFor(word: SeedWord) {
     return undefined;
   }
 
-  if (source.provider === "fandom-page-image") {
-    const params = new URLSearchParams({
-      action: "query",
-      titles: source.title,
-      prop: "pageimages",
-      format: "json",
-      pithumbsize: "500",
-    });
-    const response = await fetchJson<{
-      query?: {
-        pages?: Record<
-          string,
-          { thumbnail?: { source?: string; width?: number; height?: number } }
-        >;
-      };
-    }>(`https://pokemon.fandom.com/api.php?${params.toString()}`);
-
-    return Object.values(response.query?.pages ?? {}).find(
-      (page) => page.thumbnail?.source,
-    )?.thumbnail?.source;
-  }
-
-  return undefined;
+  return await pageImageUrlFor(source);
 }
 
 async function getItemSeedData(sourceUrl: string): Promise<ItemSeedData> {
@@ -585,12 +598,13 @@ async function main() {
           return null;
         }
 
+        const label = labelFor(result.name, config.labelPrefix, config.labelSuffix);
         const word: SeedWord = {
-          label: labelFor(result.name, config.labelPrefix, config.labelSuffix),
+          label,
           category: config.category,
           imageUrl:
             itemSeedData.imageUrl ??
-            (await imageUrlFor(config.category, sourceId)),
+            (await imageUrlFor(config.category, sourceId, label)),
           source: "pokeapi",
           sourceId,
           sourceUrl: result.url,
