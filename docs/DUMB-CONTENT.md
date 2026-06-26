@@ -29,5 +29,14 @@ Seal Case
 Herbed Sausage
 Pokemon Red Japan
 Sausages
+Wishing Star
+Scarlet Book
+Galarica Twig
+Silver Leaf
+X Accuracy 2
+Nidoran M Candy
+Health Candy
+Fruit Bunch
+
 
 The goal will be to look through these and sniff out any categories that can be limited/eliminated, or otherwise individually cutting content.

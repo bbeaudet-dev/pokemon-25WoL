@@ -174,7 +174,6 @@ export default function LobbyPage() {
     return (
       <GameOverScreen
         code={code}
-        identity={identity}
         room={room}
         onLeave={handleLeave}
       />

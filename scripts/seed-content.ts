@@ -50,6 +50,7 @@ const endpointConfigs: Array<{
   endpoint: string;
   category: ContentCategory;
   labelPrefix?: string;
+  labelSuffix?: string;
   filter?: (resource: NamedResourceList["results"][number]) => boolean;
 }> = [
   { endpoint: "pokemon-species", category: "pokemon" },
@@ -61,7 +62,7 @@ const endpointConfigs: Array<{
   },
   { endpoint: "move", category: "move" },
   { endpoint: "ability", category: "ability" },
-  { endpoint: "region", category: "region" },
+  { endpoint: "region", category: "region", labelSuffix: "Region" },
   { endpoint: "location", category: "town" },
   { endpoint: "version", category: "game", labelPrefix: "Pokemon" },
 ];
@@ -373,9 +374,10 @@ async function getItemSeedData(sourceUrl: string): Promise<ItemSeedData> {
   return { imageUrl: item.sprites.default ?? undefined };
 }
 
-function labelFor(name: string, labelPrefix?: string) {
+function labelFor(name: string, labelPrefix?: string, labelSuffix?: string) {
   const label = titleCase(name);
-  return labelPrefix ? `${labelPrefix} ${label}` : label;
+  const prefixedLabel = labelPrefix ? `${labelPrefix} ${label}` : label;
+  return labelSuffix ? `${prefixedLabel} ${labelSuffix}` : prefixedLabel;
 }
 
 function chunk<T>(items: T[], size: number) {
@@ -506,7 +508,7 @@ async function main() {
         }
 
         const word: SeedWord = {
-          label: labelFor(result.name, config.labelPrefix),
+          label: labelFor(result.name, config.labelPrefix, config.labelSuffix),
           category: config.category,
           imageUrl:
             itemSeedData.imageUrl ??

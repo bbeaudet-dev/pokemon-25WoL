@@ -92,7 +92,7 @@ export const initialContentWords: InitialContentWord[] = [
   { label: "Fire", category: "type", source: "pokeapi", sourceId: "10" },
   { label: "Water", category: "type", source: "pokeapi", sourceId: "11" },
   { label: "Grass", category: "type", source: "pokeapi", sourceId: "12" },
-  { label: "Kanto", category: "region", source: "pokeapi", sourceId: "1" },
+  { label: "Kanto Region", category: "region", source: "pokeapi", sourceId: "1" },
   { label: "Pallet Town", category: "town", source: "pokeapi" },
   { label: "Brock", category: "gym_leader", source: "curated" },
   { label: "Professor Oak", category: "professor", source: "curated" },

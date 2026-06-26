@@ -1,17 +1,14 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import {
   Coffee,
   Crown,
   Home,
   MessageSquareHeart,
-  RotateCcw,
   Trophy,
 } from "lucide-react";
-import { useState } from "react";
 import { convexApi, type GameRoom } from "@/lib/convex-api";
-import type { GuestIdentity } from "@/lib/guest";
 
 const BUY_ME_A_COFFEE_URL = "https://buymeacoffee.com/benbeaudet";
 const GITHUB_URL = "https://github.com/bbeaudet-dev/pokemon-25WoL";
@@ -20,31 +17,18 @@ const FEEDBACK_URL =
 
 type GameOverScreenProps = {
   code: string;
-  identity: GuestIdentity;
   room: GameRoom;
   onLeave: () => void;
 };
 
 export function GameOverScreen({
   code,
-  identity,
   room,
   onLeave,
 }: GameOverScreenProps) {
   const summary = useQuery(convexApi.games.getSummary, {
     lobbyId: room.lobby.id,
   });
-  const returnToLobby = useMutation(convexApi.lobbies.returnToLobby);
-  const [isResetting, setIsResetting] = useState(false);
-
-  async function handleReturn() {
-    setIsResetting(true);
-    try {
-      await returnToLobby({ lobbyId: room.lobby.id, guestId: identity.guestId });
-    } catch {
-      setIsResetting(false);
-    }
-  }
 
   if (summary === undefined) {
     return (
@@ -137,21 +121,13 @@ export function GameOverScreen({
         />
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div>
         <button
-          className="flex items-center justify-center gap-2 rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isResetting}
-          onClick={handleReturn}
-        >
-          <RotateCcw className="h-5 w-5" />
-          {isResetting ? "Returning..." : "Back to lobby"}
-        </button>
-        <button
-          className="flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-4 font-black text-white transition hover:bg-white/10"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-yellow-300 px-5 py-4 font-black text-black transition hover:bg-yellow-200"
           onClick={onLeave}
         >
           <Home className="h-5 w-5" />
-          Leave to home
+          Back to Home
         </button>
       </div>
 
