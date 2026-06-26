@@ -120,7 +120,7 @@ export default function HomePage() {
             Get your friends to guess your target words with as few hints as
             possible.
           </p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <p className="text-sm text-slate-400">
               Inspired by{" "}
               <a

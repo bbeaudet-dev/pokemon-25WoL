@@ -169,6 +169,13 @@ export function GameRoomBoard({
       <footer className="mb-6 flex flex-col items-start gap-2 px-2 text-xs font-bold uppercase tracking-[0.3em] text-slate-500">
         <span>Lobby {code}</span>
         <div className="flex flex-wrap items-center gap-4">
+          <button
+            className="flex items-center gap-2 text-left text-red-500 transition hover:text-red-400"
+            onClick={() => setIsLeaveGameConfirmOpen(true)}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Leave Game
+          </button>
           {isHintmaster && round.status === "active" ? (
             <button
               className="rounded-full border border-yellow-300/40 px-4 py-2 text-yellow-300 transition hover:bg-yellow-300 hover:text-black"
@@ -177,13 +184,6 @@ export function GameRoomBoard({
               End my turn
             </button>
           ) : null}
-          <button
-            className="flex items-center gap-2 text-left text-red-500 transition hover:text-red-400"
-            onClick={() => setIsLeaveGameConfirmOpen(true)}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Leave Game
-          </button>
         </div>
       </footer>
     </main>
