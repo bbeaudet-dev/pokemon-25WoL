@@ -4,6 +4,7 @@ import {
   defaultGameSettings,
   makeGameSettings,
 } from "../src/lib/game/rules";
+import { getPlayerAvatarUrl } from "../src/lib/player-avatar";
 
 const contentCategory = v.union(
   v.literal("pokemon"),
@@ -69,6 +70,7 @@ async function upsertGuestPlayer(
 ) {
   const now = Date.now();
   const cleanName = displayName.trim().slice(0, 24) || "Guest";
+  const imageUrl = getPlayerAvatarUrl(cleanName);
   const existing = await ctx.db
     .query("players")
     .withIndex("by_guestId", (q: any) => q.eq("guestId", guestId))
@@ -77,6 +79,7 @@ async function upsertGuestPlayer(
   if (existing) {
     await ctx.db.patch(existing._id, {
       displayName: cleanName,
+      imageUrl,
       lastSeenAt: now,
     });
     return existing._id;
@@ -85,6 +88,7 @@ async function upsertGuestPlayer(
   return await ctx.db.insert("players", {
     guestId,
     displayName: cleanName,
+    imageUrl,
     createdAt: now,
     lastSeenAt: now,
   });
@@ -451,6 +455,7 @@ export const updateDisplayName = mutationGeneric({
     const displayName = args.displayName.trim().slice(0, 24) || "Guest";
     await ctx.db.patch(player._id, {
       displayName,
+      imageUrl: getPlayerAvatarUrl(displayName),
       lastSeenAt: Date.now(),
     });
   },

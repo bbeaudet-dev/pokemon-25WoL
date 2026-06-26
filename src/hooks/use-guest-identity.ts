@@ -6,6 +6,7 @@ import {
   loadGuestIdentity,
   saveGuestIdentity,
 } from "@/lib/guest";
+import { getPlayerAvatarUrl } from "@/lib/player-avatar";
 
 export function useGuestIdentity() {
   const [identity, setIdentity] = useState<GuestIdentity>({
@@ -19,7 +20,11 @@ export function useGuestIdentity() {
 
   function updateDisplayName(displayName: string) {
     setIdentity((current) => {
-      const next = { ...current, displayName };
+      const next = {
+        ...current,
+        displayName,
+        imageUrl: getPlayerAvatarUrl(displayName),
+      };
       saveGuestIdentity(next);
       return next;
     });

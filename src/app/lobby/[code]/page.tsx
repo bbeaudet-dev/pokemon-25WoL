@@ -300,6 +300,10 @@ export default function LobbyPage() {
                 key={player.id}
               >
                 <span className="flex min-w-0 flex-1 items-center gap-2 font-bold">
+                  <PlayerAvatar
+                    displayName={player.displayName}
+                    imageUrl={player.imageUrl}
+                  />
                   {player.isHost ? (
                     <Crown className="h-4 w-4 text-yellow-300" />
                   ) : null}
@@ -347,6 +351,31 @@ export default function LobbyPage() {
         updateSettings={updateSettings}
       />
     </Shell>
+  );
+}
+
+function PlayerAvatar({
+  displayName,
+  imageUrl,
+}: {
+  displayName: string;
+  imageUrl?: string;
+}) {
+  if (imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        alt=""
+        className="h-8 w-8 shrink-0 rounded-full bg-white object-contain"
+        src={imageUrl}
+      />
+    );
+  }
+
+  return (
+    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-950 font-black text-white">
+      {displayName.slice(0, 1).toUpperCase()}
+    </span>
   );
 }
 

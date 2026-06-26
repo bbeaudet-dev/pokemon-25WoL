@@ -1,6 +1,9 @@
+import { getPlayerAvatarUrl } from "./player-avatar";
+
 export type GuestIdentity = {
   guestId: string;
   displayName: string;
+  imageUrl?: string;
 };
 
 const guestStorageKey = "pokemon-25-guest";
@@ -56,12 +59,22 @@ export function loadGuestIdentity(): GuestIdentity {
 
   const saved = window.localStorage.getItem(guestStorageKey);
   if (saved) {
-    return JSON.parse(saved) as GuestIdentity;
+    const identity = JSON.parse(saved) as GuestIdentity;
+    const imageUrl = getPlayerAvatarUrl(identity.displayName);
+    if (identity.imageUrl !== imageUrl) {
+      const nextIdentity = { ...identity, imageUrl };
+      saveGuestIdentity(nextIdentity);
+      return nextIdentity;
+    }
+
+    return identity;
   }
 
+  const displayName = createDisplayName();
   const identity = {
     guestId: createGuestId(),
-    displayName: createDisplayName(),
+    displayName,
+    imageUrl: getPlayerAvatarUrl(displayName),
   };
   saveGuestIdentity(identity);
   return identity;

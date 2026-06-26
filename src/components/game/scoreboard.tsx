@@ -73,9 +73,10 @@ export function Scoreboard({
                   <span>Hintmaster</span>
                 </div>
               ) : null}
-              <div className="font-display ml-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
-                {player.displayName.slice(0, 1).toUpperCase()}
-              </div>
+              <PlayerAvatar
+                displayName={player.displayName}
+                imageUrl={player.imageUrl}
+              />
               <div className="min-w-0 flex-1">
                 <p className="font-display truncate font-black">
                   {player.displayName}
@@ -119,5 +120,30 @@ export function Scoreboard({
         );
       })}
     </section>
+  );
+}
+
+function PlayerAvatar({
+  displayName,
+  imageUrl,
+}: {
+  displayName: string;
+  imageUrl?: string;
+}) {
+  if (imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        alt=""
+        className="ml-1 h-10 w-10 shrink-0 rounded-full bg-white object-contain"
+        src={imageUrl}
+      />
+    );
+  }
+
+  return (
+    <div className="font-display ml-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
+      {displayName.slice(0, 1).toUpperCase()}
+    </div>
   );
 }
