@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Plus, Users } from "lucide-react";
+import { Plus, RefreshCw, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { convexApi } from "@/lib/convex-api";
@@ -15,7 +15,8 @@ const lobbiesPerPage = 10;
 
 export default function HomePage() {
   const router = useRouter();
-  const { identity, updateDisplayName, isReady } = useGuestIdentity();
+  const { identity, rerollIdentity, updateDisplayName, isReady } =
+    useGuestIdentity();
   const lobbyData = useQuery(convexApi.lobbies.listOpen, {});
   const lobbies = lobbyData?.joinable;
   const lobbyStats = lobbyData?.stats;
@@ -98,6 +99,11 @@ export default function HomePage() {
       setError(err instanceof Error ? err.message : "Unable to join lobby.");
       setJoiningLobbyCode(null);
     }
+  }
+
+  function handleRerollIdentity() {
+    const nextIdentity = rerollIdentity();
+    setDraftDisplayName(nextIdentity.displayName);
   }
 
   return (
@@ -310,6 +316,16 @@ export default function HomePage() {
                 displayName={draftDisplayName || identity.displayName}
                 imageUrl={getPlayerAvatarUrl(draftDisplayName)}
               />
+              <button
+                aria-label="Reroll display name and avatar"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-black/40 text-yellow-300 transition hover:bg-black/60 hover:text-yellow-200"
+                disabled={!isReady}
+                onClick={handleRerollIdentity}
+                title="Reroll display name and avatar"
+                type="button"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
             </label>
           </div>
         </aside>

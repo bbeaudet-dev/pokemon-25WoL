@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  createGuestIdentity,
   type GuestIdentity,
   loadGuestIdentity,
   saveGuestIdentity,
@@ -30,8 +31,16 @@ export function useGuestIdentity() {
     });
   }
 
+  function rerollIdentity() {
+    const next = createGuestIdentity();
+    saveGuestIdentity(next);
+    setIdentity(next);
+    return next;
+  }
+
   return {
     identity,
+    rerollIdentity,
     updateDisplayName,
     isReady: Boolean(identity.guestId),
   };

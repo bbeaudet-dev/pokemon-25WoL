@@ -63,6 +63,15 @@ function createDisplayName() {
   return `${adjective}${pokemon}`;
 }
 
+export function createGuestIdentity(): GuestIdentity {
+  const displayName = createDisplayName();
+  return {
+    guestId: createGuestId(),
+    displayName,
+    imageUrl: getPlayerAvatarUrl(displayName),
+  };
+}
+
 export function loadGuestIdentity(): GuestIdentity {
   if (typeof window === "undefined") {
     return { guestId: "", displayName: "" };
@@ -81,12 +90,7 @@ export function loadGuestIdentity(): GuestIdentity {
     return identity;
   }
 
-  const displayName = createDisplayName();
-  const identity = {
-    guestId: createGuestId(),
-    displayName,
-    imageUrl: getPlayerAvatarUrl(displayName),
-  };
+  const identity = createGuestIdentity();
   saveGuestIdentity(identity);
   return identity;
 }
