@@ -7,8 +7,9 @@ import {
   normalizeWord,
   scoreGuess,
   selectRandomItems,
+  selectTargetCandidates,
 } from "./rules";
-import type { TargetWord } from "./types";
+import type { ContentWord, TargetWord } from "./types";
 
 const targets: TargetWord[] = [
   {
@@ -93,6 +94,77 @@ describe("selectRandomItems", () => {
     expect(selected).toHaveLength(150);
     expect(selected).toContain(150);
     expect(items.at(-1)).toBe(200);
+  });
+});
+
+describe("selectTargetCandidates", () => {
+  const makeWord = (category: ContentWord["category"], label: string) => ({
+    id: `${category}-${label}`,
+    label,
+    normalizedLabel: label.toLowerCase(),
+    category,
+    source: "curated" as const,
+  });
+
+  it("puts a pokemon first when pokemon are available", () => {
+    const selected = selectTargetCandidates(
+      [
+        makeWord("item", "Mental Herb"),
+        makeWord("region", "Kanto"),
+        makeWord("pokemon", "Sceptile"),
+      ],
+      3,
+      () => 0,
+    );
+
+    expect(selected[0].category).toBe("pokemon");
+  });
+
+  it("can reserve enabled anchor categories before filling the rest", () => {
+    const selected = selectTargetCandidates(
+      [
+        makeWord("pokemon", "Sceptile"),
+        makeWord("region", "Kanto"),
+        makeWord("game", "Pokemon Scarlet"),
+        makeWord("type", "Fire"),
+        makeWord("move", "Thunderbolt"),
+        makeWord("ability", "Static"),
+        makeWord("item", "Potion"),
+      ],
+      6,
+      () => 0,
+    );
+
+    expect(selected.map((word) => word.category)).toEqual([
+      "pokemon",
+      "region",
+      "game",
+      "type",
+      "move",
+      "ability",
+    ]);
+  });
+
+  it("soft caps items while enough non-item content exists", () => {
+    const selected = selectTargetCandidates(
+      [
+        makeWord("pokemon", "Sceptile"),
+        makeWord("item", "Potion"),
+        makeWord("item", "X Attack"),
+        makeWord("item", "Noodles"),
+        makeWord("region", "Kanto"),
+        makeWord("game", "Pokemon Scarlet"),
+        makeWord("type", "Fire"),
+        makeWord("move", "Thunderbolt"),
+        makeWord("ability", "Static"),
+        makeWord("town", "Pallet Town"),
+        makeWord("professor", "Professor Oak"),
+      ],
+      10,
+      () => 0,
+    );
+
+    expect(selected.filter((word) => word.category === "item")).toHaveLength(2);
   });
 });
 

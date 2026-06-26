@@ -9,7 +9,7 @@ import {
   makeGameSettings,
   normalizeWord,
   scoreGuess,
-  selectRandomItems,
+  selectTargetCandidates,
 } from "../src/lib/game/rules";
 
 async function getPlayerByGuestId(ctx: any, guestId: string) {
@@ -81,7 +81,9 @@ async function selectTargetWords(ctx: any, settings: any) {
     );
   }
 
-  return selectRandomItems(content, settings.targetWordsPerRound).map(toTargetWord);
+  return selectTargetCandidates(content, settings.targetWordsPerRound).map(
+    toTargetWord,
+  );
 }
 
 async function createRound(ctx: any, game: any, hintGiverPlayerId: string) {

@@ -154,6 +154,80 @@ export function selectRandomItems<T>(
   return shuffled.slice(0, count);
 }
 
+export const targetAnchorCategories: ContentCategory[] = [
+  "region",
+  "game",
+  "type",
+  "move",
+  "ability",
+];
+
+export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
+  items: T[],
+  count: number,
+  random: () => number = Math.random,
+) {
+  const selected: T[] = [];
+  const remaining = [...items];
+  const maxItemTargets = Math.max(1, Math.floor(count * 0.2));
+  const anchorChance = 0.7;
+
+  function takeRandomFromCategory(category: ContentCategory) {
+    const candidates = remaining
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.category === category);
+
+    if (candidates.length === 0) {
+      return undefined;
+    }
+
+    const candidate = candidates[Math.floor(random() * candidates.length)];
+    remaining.splice(candidate.index, 1);
+    selected.push(candidate.item);
+    return candidate.item;
+  }
+
+  if (count <= 0) {
+    return [];
+  }
+
+  takeRandomFromCategory("pokemon");
+
+  for (const category of targetAnchorCategories) {
+    if (selected.length >= count) {
+      break;
+    }
+
+    if (random() <= anchorChance) {
+      takeRandomFromCategory(category);
+    }
+  }
+
+  const shuffledRemaining = selectRandomItems(remaining, remaining.length, random);
+  for (const item of shuffledRemaining) {
+    if (selected.length >= count) {
+      break;
+    }
+
+    const itemCount = selected.filter(
+      (selectedItem) => selectedItem.category === "item",
+    ).length;
+    if (item.category === "item" && itemCount >= maxItemTargets) {
+      continue;
+    }
+
+    selected.push(item);
+  }
+
+  if (selected.length < count) {
+    const selectedSet = new Set(selected);
+    const overflow = shuffledRemaining.filter((item) => !selectedSet.has(item));
+    selected.push(...overflow.slice(0, count - selected.length));
+  }
+
+  return selected.slice(0, count);
+}
+
 export function hintViolatesTargetWords(
   hintText: string,
   targets: Pick<TargetWord, "label" | "normalizedLabel">[],

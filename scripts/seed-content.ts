@@ -78,6 +78,93 @@ const excludedItemCategories = new Set([
   "unused",
 ]);
 
+const curatedContentWords: SeedWord[] = [
+  {
+    label: "Professor Oak",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-oak",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Oak",
+  },
+  {
+    label: "Professor Elm",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-elm",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Elm",
+  },
+  {
+    label: "Professor Birch",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-birch",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Birch",
+  },
+  {
+    label: "Professor Rowan",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-rowan",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Rowan",
+  },
+  {
+    label: "Professor Juniper",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-juniper",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Juniper",
+  },
+  {
+    label: "Professor Sycamore",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-sycamore",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Sycamore",
+  },
+  {
+    label: "Professor Kukui",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-kukui",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Kukui",
+  },
+  {
+    label: "Professor Magnolia",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-magnolia",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Magnolia",
+  },
+  {
+    label: "Professor Sonia",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-sonia",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Sonia",
+  },
+  {
+    label: "Professor Laventon",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-laventon",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Laventon",
+  },
+  {
+    label: "Professor Sada",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-sada",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Sada",
+  },
+  {
+    label: "Professor Turo",
+    category: "professor",
+    source: "curated",
+    sourceId: "professor-turo",
+    sourceUrl: "https://bulbapedia.bulbagarden.net/wiki/Professor_Turo",
+  },
+];
+
 function titleCase(name: string) {
   return name
     .split("-")
@@ -283,6 +370,25 @@ async function main() {
       `${config.endpoint}: accepted ${accepted.length} of ${list.count} ${config.category} records.`,
     );
   }
+
+  for (const word of curatedContentWords) {
+    const key = getContentIdentityKey(word.category, word.label);
+
+    if (wordsByKey.has(key)) {
+      duplicates.push(key);
+      continue;
+    }
+
+    if (!word.imageUrl) {
+      missingImages.set(
+        word.category,
+        (missingImages.get(word.category) ?? 0) + 1,
+      );
+    }
+
+    wordsByKey.set(key, word);
+  }
+  console.log(`curated: accepted ${curatedContentWords.length} records.`);
 
   const words = Array.from(wordsByKey.values());
   let seededCount = 0;
