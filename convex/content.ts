@@ -123,9 +123,15 @@ export const search = queryGeneric({
   },
 });
 
-const showcaseCategories = ["pokemon", "item"] as const;
+const showcaseCategories = [
+  { category: "pokemon", weight: 3 },
+  { category: "item", weight: 3 },
+  { category: "badge", weight: 2 },
+  { category: "professor", weight: 1 },
+  { category: "gym_leader", weight: 1 },
+] as const;
 
-// Returns a deterministic pool of image-backed Pokemon and items. Keeping this
+// Returns a deterministic, weighted pool of image-backed showcase content. Keeping this
 // query deterministic lets Convex cache it and share one result across every
 // visitor; the client shuffles and samples this pool so the wheel still looks
 // fresh on each page load without re-reading the table per visit.
@@ -135,22 +141,28 @@ export const showcase = queryGeneric({
   },
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 300, 1), 600);
-    const perCategory = Math.ceil(limit / showcaseCategories.length);
+    const totalWeight = showcaseCategories.reduce(
+      (sum, config) => sum + config.weight,
+      0,
+    );
     const scanWindow = 500;
 
     const pools = await Promise.all(
-      showcaseCategories.map((category) =>
+      showcaseCategories.map((config) =>
         ctx.db
           .query("content")
-          .withIndex("by_category", (q) => q.eq("category", category))
+          .withIndex("by_category", (q) => q.eq("category", config.category))
           .take(scanWindow),
       ),
     );
 
-    return pools.flatMap((pool) =>
+    return pools.flatMap((pool, index) =>
       pool
         .filter((word) => Boolean(word.imageUrl))
-        .slice(0, perCategory)
+        .slice(
+          0,
+          Math.ceil((limit * showcaseCategories[index].weight) / totalWeight),
+        )
         .map((word) => ({
           id: word._id,
           label: word.label,
