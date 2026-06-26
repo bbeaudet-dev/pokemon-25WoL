@@ -125,7 +125,7 @@ export const search = queryGeneric({
 
 const showcaseCategories = [
   { category: "pokemon", weight: 20 },
-  { category: "item", weight: 24 },
+  { category: "item", weight: 20 },
   { category: "badge", weight: 1 },
 ] as const;
 

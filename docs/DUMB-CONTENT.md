@@ -37,6 +37,14 @@ X Accuracy 2
 Nidoran M Candy
 Health Candy
 Fruit Bunch
-
+Ground Memory
+Hoenn Route 122
+Avocado
+Shadow Mist
+Teatime
+Bridge Mail U
+Sinnoh Route 202
+Item Urge
+Onion
 
 The goal will be to look through these and sniff out any categories that can be limited/eliminated, or otherwise individually cutting content.
