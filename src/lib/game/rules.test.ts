@@ -151,16 +151,17 @@ describe("selectTargetCandidates", () => {
     );
 
     expect(selected[0].category).toBe("pokemon");
-    expect(new Set(selected.map((word) => word.category))).toEqual(
-      new Set(["pokemon", "region", "game", "type", "item", "move"]),
-    );
+    expect(selected).toHaveLength(6);
+    expect(
+      selected.filter((word) => ["region", "game"].includes(word.category)),
+    ).toHaveLength(1);
     expect(selected.map((word) => word.category)).not.toEqual([
       "pokemon",
       "region",
-      "game",
       "type",
       "item",
-      "move",
+      "professor",
+      "badge",
     ]);
   });
 
@@ -194,11 +195,15 @@ describe("selectTargetCandidates", () => {
     expect(selected.filter((word) => word.category === "move")).toHaveLength(1);
     expect(selected.filter((word) => word.category === "town")).toHaveLength(1);
     expect(selected.filter((word) => word.category === "ability")).toHaveLength(1);
-    expect(selected.filter((word) => word.category === "region")).toHaveLength(1);
-    expect(selected.filter((word) => word.category === "game")).toHaveLength(1);
+    expect(
+      selected.filter((word) => ["region", "game"].includes(word.category)),
+    ).toHaveLength(1);
     expect(selected.filter((word) => word.category === "type")).toHaveLength(1);
-    expect(selected.filter((word) => word.category === "professor")).toHaveLength(1);
-    expect(selected.filter((word) => word.category === "gym_leader")).toHaveLength(1);
+    expect(
+      selected.filter((word) =>
+        ["professor", "gym_leader"].includes(word.category),
+      ),
+    ).toHaveLength(1);
     expect(selected.filter((word) => word.category === "badge")).toHaveLength(1);
   });
 
@@ -209,6 +214,7 @@ describe("selectTargetCandidates", () => {
         makeWord("pokemon", "Raichu"),
         makeWord("pokemon", "Lapras"),
         makeWord("pokemon", "Dragonite"),
+        makeWord("pokemon", "Gengar"),
         makeWord("region", "Kanto Region"),
         makeWord("game", "Pokemon Scarlet"),
         makeWord("type", "Fire Type"),
@@ -222,7 +228,15 @@ describe("selectTargetCandidates", () => {
       () => 0,
     );
 
-    expect(selected.filter((word) => word.category === "pokemon")).toHaveLength(3);
+    expect(selected.filter((word) => word.category === "pokemon")).toHaveLength(5);
+    expect(
+      selected.filter((word) => ["region", "game"].includes(word.category)),
+    ).toHaveLength(1);
+    expect(
+      selected.filter((word) =>
+        ["professor", "gym_leader"].includes(word.category),
+      ),
+    ).toHaveLength(1);
   });
 });
 

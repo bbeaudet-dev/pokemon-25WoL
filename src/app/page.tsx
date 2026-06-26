@@ -158,8 +158,8 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      <section className="grid items-start gap-5 lg:grid-cols-[1.5fr_0.9fr]">
-        <div className="rounded-4xl border border-white/10 bg-slate-950/70 p-5">
+      <section className="grid items-start gap-5 lg:grid-cols-[0.9fr_1.5fr]">
+        <div className="order-2 rounded-4xl border border-white/10 bg-slate-950/70 p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-2xl font-black">Active Lobbies</h2>
           </div>
@@ -243,7 +243,7 @@ export default function HomePage() {
           ) : null}
         </div>
 
-        <aside className="grid gap-5">
+        <aside className="order-1 grid gap-5">
           <div className="rounded-4xl border border-white/10 bg-white/10 p-5">
             <h2 className="text-2xl font-black">Start Playing</h2>
             <button

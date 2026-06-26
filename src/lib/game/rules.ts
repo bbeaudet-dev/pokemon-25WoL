@@ -226,6 +226,13 @@ const targetCategoryCaps: Partial<Record<ContentCategory, number>> = {
   type: 1,
 };
 
+const targetCategoryGroups: Partial<Record<ContentCategory, ContentCategory[]>> = {
+  game: ["game", "region"],
+  gym_leader: ["gym_leader", "professor"],
+  professor: ["professor", "gym_leader"],
+  region: ["region", "game"],
+};
+
 const targetCategoryChances: Partial<Record<ContentCategory, number>> = {
   ability: 0.5,
   badge: 0.5,
@@ -247,7 +254,10 @@ export function selectTargetCandidates<T extends Pick<ContentWord, "category">>(
   const enabledCategories = new Set<ContentCategory>(["pokemon"]);
 
   function selectedCategoryCount(category: ContentCategory) {
-    return selected.filter((item) => item.category === category).length;
+    const groupedCategories = targetCategoryGroups[category] ?? [category];
+    return selected.filter((item) =>
+      groupedCategories.includes(item.category),
+    ).length;
   }
 
   function canSelectCategory(category: ContentCategory) {
