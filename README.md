@@ -75,3 +75,12 @@ This whole thing exists because of **[ZaneGames](https://www.youtube.com/watch?v
 > "I give full permission to anybody out there to turn this into a website in their free time."
 
 Challenge accepted.
+
+## Support
+
+This is a passion project, built for fun and given away for free. If you enjoyed it and want to chip in toward server costs (or just a literal coffee), it's genuinely appreciated — but never expected.
+
+[Buy me a coffee](https://buymeacoffee.com/benbeaudet)
+
+Either way, thanks for playing!
+ 
