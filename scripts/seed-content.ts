@@ -20,6 +20,12 @@ type NamedResourceList = {
   }>;
 };
 
+type ItemDetail = {
+  sprites: {
+    default: string | null;
+  };
+};
+
 const upsertMany = makeFunctionReference<
   "mutation",
   { words: SeedWord[] },
@@ -47,6 +53,7 @@ const endpointConfigs: Array<{
 ];
 
 const batchSize = 100;
+const detailFetchConcurrency = 20;
 const maxMutationAttempts = 3;
 
 function titleCase(name: string) {
@@ -60,17 +67,18 @@ function idFromUrl(url: string) {
   return url.split("/").filter(Boolean).at(-1);
 }
 
-function imageUrlFor(
+async function imageUrlFor(
   category: ContentCategory,
-  resourceName: string,
   sourceId?: string,
+  sourceUrl?: string,
 ) {
   if (category === "pokemon" && sourceId) {
     return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${sourceId}.png`;
   }
 
-  if (category === "item") {
-    return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/${resourceName}.png`;
+  if (category === "item" && sourceUrl) {
+    const item = await fetchJson<ItemDetail>(sourceUrl);
+    return item.sprites.default ?? undefined;
   }
 
   return undefined;
@@ -94,6 +102,29 @@ function countByCategory(words: SeedWord[]) {
     counts[word.category] = (counts[word.category] ?? 0) + 1;
     return counts;
   }, {});
+}
+
+async function mapWithConcurrency<T, U>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<U>,
+) {
+  const results: U[] = [];
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  );
+
+  return results;
 }
 
 async function upsertBatchWithRetry(
@@ -122,16 +153,20 @@ async function upsertBatchWithRetry(
   throw lastError;
 }
 
-async function fetchEndpoint(endpoint: string) {
-  const response = await fetch(
-    `https://pokeapi.co/api/v2/${endpoint}?limit=100000&offset=0`,
-  );
+async function fetchJson<T>(url: string) {
+  const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`PokeAPI ${endpoint} request failed: ${response.status}`);
+    throw new Error(`PokeAPI request failed: ${url} returned ${response.status}`);
   }
 
-  return (await response.json()) as NamedResourceList;
+  return (await response.json()) as T;
+}
+
+async function fetchEndpoint(endpoint: string) {
+  return await fetchJson<NamedResourceList>(
+    `https://pokeapi.co/api/v2/${endpoint}?limit=100000&offset=0`,
+  );
 }
 
 async function main() {
@@ -152,21 +187,38 @@ async function main() {
       ? list.results.filter(config.filter)
       : list.results;
 
-    for (const result of list.results) {
-      if (config.filter && !config.filter(result)) {
-        skipped.push(`${config.endpoint}:${result.name}`);
+    const endpointWords = await mapWithConcurrency(
+      list.results,
+      detailFetchConcurrency,
+      async (result) => {
+        if (config.filter && !config.filter(result)) {
+          skipped.push(`${config.endpoint}:${result.name}`);
+          return null;
+        }
+
+        const sourceId = idFromUrl(result.url);
+        const word: SeedWord = {
+          label: labelFor(result.name, config.labelPrefix),
+          category: config.category,
+          imageUrl: await imageUrlFor(
+            config.category,
+            sourceId,
+            result.url,
+          ),
+          source: "pokeapi",
+          sourceId,
+          sourceUrl: result.url,
+        };
+
+        return word;
+      },
+    );
+
+    for (const word of endpointWords) {
+      if (!word) {
         continue;
       }
 
-      const sourceId = idFromUrl(result.url);
-      const word: SeedWord = {
-        label: labelFor(result.name, config.labelPrefix),
-        category: config.category,
-        imageUrl: imageUrlFor(config.category, result.name, sourceId),
-        source: "pokeapi",
-        sourceId,
-        sourceUrl: result.url,
-      };
       const key = getContentIdentityKey(word.category, word.label);
 
       if (wordsByKey.has(key)) {

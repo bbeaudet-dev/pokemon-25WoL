@@ -190,12 +190,14 @@ function Scoreboard({
                     label={latestGuess.guessedWord.label}
                     size="sm"
                   />
-                  <span className="min-w-0 truncate">
+                  <span className="font-display min-w-0 truncate">
                     {latestGuess.guessedWord.label}
                   </span>
                   <span
                     className={
-                      latestGuess.isCorrect ? "text-green-300" : "text-slate-400"
+                      latestGuess.isCorrect
+                        ? "font-display text-green-300"
+                        : "font-display text-slate-400"
                     }
                   >
                     {latestGuess.isCorrect ? "Correct" : "Miss"}
@@ -205,27 +207,29 @@ function Scoreboard({
             ) : null}
             <div className="clip-score relative flex min-h-20 items-center gap-3 bg-white px-4 py-3 pt-5 text-black shadow-lg">
               {player.id === hintmasterId ? (
-                <div className="absolute left-6 right-8 top-0 flex items-center justify-center gap-1 rounded-b-xl bg-yellow-300 px-3 py-1 text-center text-[10px] font-black uppercase tracking-widest text-black">
+                <div className="font-display absolute left-6 right-8 top-0 flex items-center justify-center gap-1 rounded-b-xl bg-yellow-300 px-3 py-1 text-center text-[10px] font-black uppercase tracking-widest text-black">
                   <Crown className="h-3 w-3" />
                   <span>Hintmaster</span>
                 </div>
               ) : null}
-              <div className="ml-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
+              <div className="font-display ml-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 font-black text-white">
                 {player.displayName.slice(0, 1).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-black">
+                <p className="font-display truncate font-black">
                   {player.displayName}
                 </p>
               </div>
               <div className="text-right">
-                <p className={`text-sm font-black ${roundScoreClass}`}>
+                <p className={`font-display text-sm font-black ${roundScoreClass}`}>
                   +{displayEarned}
                   {player.id !== hintmasterId && totals.penalties ? (
                     <span className="ml-2 text-red-600">-{totals.penalties}</span>
                   ) : null}
                 </p>
-                <p className="text-2xl font-black">{score?.totalScore ?? 0}</p>
+                <p className="font-display text-2xl font-black">
+                  {score?.totalScore ?? 0}
+                </p>
               </div>
             </div>
           </div>
@@ -273,7 +277,7 @@ function TargetConfirmModal({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-5 backdrop-blur-sm">
       <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950 p-6 shadow-2xl">
-        <p className="text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
+        <p className="font-display text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
           {isHintmaster ? "Confirm your targets" : "Targets are being confirmed"}
         </p>
         <div
@@ -284,7 +288,7 @@ function TargetConfirmModal({
         >
           {round.targetWords.map((target, index) => (
             <div
-              className="clip-score flex items-center gap-3 bg-white px-4 py-3 font-black text-black"
+              className="font-display clip-score flex items-center gap-3 bg-white px-4 py-3 font-black text-black"
               key={target.contentId}
             >
               <span className="mr-3 rounded bg-yellow-200 px-2 py-1 text-xs">
@@ -309,7 +313,7 @@ function TargetConfirmModal({
         {isHintmaster ? (
           <div className="mt-6 flex justify-end gap-3">
             <button
-              className={`rounded-2xl px-5 py-3 font-black leading-tight text-black transition ${
+              className={`font-display rounded-2xl px-5 py-3 font-black leading-tight text-black transition ${
                 isRerolling
                   ? "scale-95 bg-purple-200"
                   : "bg-purple-400 hover:bg-purple-300"
@@ -328,7 +332,7 @@ function TargetConfirmModal({
               </span>
             </button>
             <button
-              className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black transition hover:bg-yellow-200 disabled:cursor-wait disabled:opacity-70"
+              className="font-display rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black transition hover:bg-yellow-200 disabled:cursor-wait disabled:opacity-70"
               disabled={Boolean(pendingAction)}
               onClick={() =>
                 run("confirm", () => confirmTargets({ roundId: round.id, guestId }))
@@ -381,7 +385,7 @@ function CurrentHint({
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/10 p-4">
       <div className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-black/30 px-4 py-3">
-        <p className="min-w-0 flex-1 truncate text-xl">
+        <p className="font-display min-w-0 flex-1 truncate text-xl">
           {latestHint ? (
             <>
               <span className="font-black text-yellow-300">
@@ -404,7 +408,7 @@ function CurrentHint({
             onChange={(event) => setText(event.target.value)}
             placeholder="Type hint words, then press Enter"
           />
-          <button className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black">
+          <button className="font-display rounded-2xl bg-yellow-300 px-5 py-3 font-black text-black">
             <Send className="h-5 w-5" />
           </button>
         </form>
@@ -427,7 +431,7 @@ function HintWordGrid({
           const word = round.hintWords[index];
           return (
             <div
-              className={`clip-tag flex min-h-9 min-w-40 items-center gap-2 px-3 py-2 text-left text-xs font-black text-black ${
+              className={`font-display clip-tag flex min-h-9 min-w-40 items-center gap-2 px-3 py-2 text-left text-xs font-black text-black ${
                 index < 10
                   ? "bg-green-100"
                   : index < 20
@@ -469,7 +473,7 @@ function TargetRail({
           const visible = isHintmaster || solved;
           return (
             <div
-              className={`clip-score flex items-center gap-2 px-3 py-2 text-sm font-black text-black ${
+              className={`font-display clip-score flex items-center gap-2 px-3 py-2 text-sm font-black text-black ${
                 solved
                   ? "bg-green-200"
                   : index === currentTargetIndex
@@ -568,7 +572,7 @@ function GuessPanel({
       <div className="mt-3 grid min-h-0 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {(results ?? []).map((result) => (
           <button
-            className="flex items-center gap-3 rounded-2xl bg-black/40 px-3 py-2 text-left font-bold transition hover:bg-yellow-300 hover:text-black"
+            className="font-display flex items-center gap-3 rounded-2xl bg-black/40 px-3 py-2 text-left font-bold transition hover:bg-yellow-300 hover:text-black"
             key={result.id}
             onClick={() => guess(result.id)}
           >
@@ -611,7 +615,14 @@ function WordImage({
   size?: "sm" | "md";
 }) {
   const sizeClass = size === "sm" ? "h-8 w-8" : "h-10 w-10";
-  const displayImageUrl = imageUrl ?? (category && categoryFallbackImages[category]);
+  const fallbackImageUrl = category && categoryFallbackImages[category];
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const displayImageUrl =
+    imageUrl && imageUrl !== failedImageUrl
+      ? imageUrl
+      : fallbackImageUrl && fallbackImageUrl !== failedImageUrl
+        ? fallbackImageUrl
+        : undefined;
 
   if (!displayImageUrl) {
     return (
@@ -629,6 +640,7 @@ function WordImage({
     <img
       alt={label}
       className={`${sizeClass} shrink-0 rounded-full bg-white object-contain`}
+      onError={() => setFailedImageUrl(displayImageUrl)}
       src={displayImageUrl}
     />
   );

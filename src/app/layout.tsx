@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
+import { Coiny } from "next/font/google";
 import "./globals.css";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
+
+const coiny = Coiny({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-display",
+});
 
 export const metadata: Metadata = {
   title: "25 Words or Less",
@@ -13,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html className={coiny.variable} lang="en">
       <body>
         <ConvexClientProvider>{children}</ConvexClientProvider>
       </body>
