@@ -9,6 +9,8 @@ import { useGuestIdentity } from "@/hooks/use-guest-identity";
 import { ContentWheel } from "@/components/home/content-wheel";
 import { BuyMeACoffee } from "@/components/support/buy-me-a-coffee";
 
+const lobbiesPerPage = 10;
+
 export default function HomePage() {
   const router = useRouter();
   const { identity, updateDisplayName, isReady } = useGuestIdentity();
@@ -19,6 +21,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [joiningLobbyCode, setJoiningLobbyCode] = useState<string | null>(null);
+  const [lobbyPage, setLobbyPage] = useState(0);
   const [draftDisplayName, setDraftDisplayName] = useState(
     identity.displayName,
   );
@@ -31,6 +34,24 @@ export default function HomePage() {
       setDraftDisplayName(identity.displayName);
     });
   }, [identity.displayName]);
+
+  const lobbyPageCount = lobbies
+    ? Math.max(1, Math.ceil(lobbies.length / lobbiesPerPage))
+    : 1;
+  const visibleLobbies = lobbies?.slice(
+    lobbyPage * lobbiesPerPage,
+    lobbyPage * lobbiesPerPage + lobbiesPerPage,
+  );
+
+  useEffect(() => {
+    if (lobbyPage < lobbyPageCount) {
+      return;
+    }
+
+    queueMicrotask(() => {
+      setLobbyPage(Math.max(0, lobbyPageCount - 1));
+    });
+  }, [lobbyPage, lobbyPageCount]);
 
   async function handleCreateLobby() {
     if (!isReady) {
@@ -137,18 +158,18 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      <section className="grid gap-5 lg:grid-cols-[1.5fr_0.9fr]">
+      <section className="grid items-start gap-5 lg:grid-cols-[1.5fr_0.9fr]">
         <div className="rounded-4xl border border-white/10 bg-slate-950/70 p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-2xl font-black">Active Lobbies</h2>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-white/10">
-            <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 bg-white/10 px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-300">
+            <div className="grid grid-cols-[minmax(5rem,0.8fr)_minmax(8rem,1.2fr)_6rem_8.5rem] gap-3 bg-white/10 px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-300">
               <span>Mode</span>
               <span>Host</span>
               <span>Players</span>
-              <span>Action</span>
+              <span className="text-center">Action</span>
             </div>
             <div className="divide-y divide-white/10">
               {lobbies === undefined ? (
@@ -158,10 +179,10 @@ export default function HomePage() {
                   No active lobbies yet. Go create one!
                 </p>
               ) : (
-                lobbies.map((lobby) => (
+                visibleLobbies?.map((lobby) => (
                   <div
                     key={lobby.id}
-                    className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-3 px-4 py-3"
+                    className="grid grid-cols-[minmax(5rem,0.8fr)_minmax(8rem,1.2fr)_6rem_8.5rem] items-center gap-3 px-4 py-3"
                   >
                     <span className="capitalize">{lobby.mode}</span>
                     <span>{lobby.hostName}</span>
@@ -171,21 +192,21 @@ export default function HomePage() {
                     </span>
                     {lobby.status === "in_progress" ? (
                       <button
-                        className="rounded-full bg-slate-700 px-4 py-2 text-sm font-black text-slate-300"
+                        className="w-full rounded-full bg-slate-700 px-4 py-2 text-sm font-black text-slate-300"
                         disabled
                       >
                         In Progress
                       </button>
                     ) : lobby.visibility === "private" ? (
                       <button
-                        className="rounded-full bg-slate-700 px-4 py-2 text-sm font-black text-slate-300"
+                        className="w-full rounded-full bg-slate-700 px-4 py-2 text-sm font-black text-slate-300"
                         disabled
                       >
                         Private
                       </button>
                     ) : (
                       <button
-                        className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-black text-black transition hover:bg-yellow-200"
+                        className="w-full rounded-full bg-yellow-300 px-4 py-2 text-sm font-black text-black transition hover:bg-yellow-200"
                         disabled={joiningLobbyCode === lobby.code}
                         onClick={() => joinByCode(lobby.code)}
                       >
@@ -197,6 +218,29 @@ export default function HomePage() {
               )}
             </div>
           </div>
+          {lobbies && lobbies.length > lobbiesPerPage ? (
+            <div className="mt-4 flex items-center justify-between gap-3 text-sm font-bold text-slate-300">
+              <button
+                className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={lobbyPage === 0}
+                onClick={() => setLobbyPage((page) => Math.max(0, page - 1))}
+              >
+                Previous
+              </button>
+              <span>
+                Page {lobbyPage + 1} of {lobbyPageCount}
+              </span>
+              <button
+                className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={lobbyPage >= lobbyPageCount - 1}
+                onClick={() =>
+                  setLobbyPage((page) => Math.min(lobbyPageCount - 1, page + 1))
+                }
+              >
+                Next
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <aside className="grid gap-5">
