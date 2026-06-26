@@ -1,6 +1,6 @@
 # Ideas
 
-## Trainer Names
+## Display Names & Profile Avatars
 
 Default guest names can use playful Pokemon-style combinations, such as:
 
@@ -10,6 +10,8 @@ Default guest names can use playful Pokemon-style combinations, such as:
 - Comfy Lugia
 
 Later, lobby joins should check for duplicate display names and reroll or suffix the generated name when needed.
+
+Players should be able to select a new avatar from a grid, either from the curated list or from a search-bar style interface like there is within the game for guessers.
 
 ## Content Ideas
 

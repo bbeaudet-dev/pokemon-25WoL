@@ -1,5 +1,15 @@
-A list of target words I have received which I think are dumb and/or missing images:
+### Manual Labels
 
+Pokemon Xd
+Rks System
+Legends Za
+Pokemon Green Japan
+
+### A list of target words I have received which I think are dumb and/or missing images:
+
+The goal will be to look through these and sniff out any categories that can be limited/eliminated, or otherwise individually cutting content.
+
+W
 Noodles
 Poisonium Z Held
 X Attack 6
@@ -56,5 +66,3 @@ Paldea South Province Four
 Smart Candy Xl
 Pokemon Festa 07
 Chamber of Emptiness
-
-The goal will be to look through these and sniff out any categories that can be limited/eliminated, or otherwise individually cutting content.
