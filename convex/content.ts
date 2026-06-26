@@ -123,6 +123,48 @@ export const search = queryGeneric({
   },
 });
 
+const showcaseCategories = ["pokemon", "item"] as const;
+
+function shuffleInPlace<T>(items: T[]) {
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
+export const showcase = queryGeneric({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 80, 1), 200);
+    const perCategoryPool = 500;
+
+    const pools = await Promise.all(
+      showcaseCategories.map((category) =>
+        ctx.db
+          .query("content")
+          .withIndex("by_category", (q) => q.eq("category", category))
+          .take(perCategoryPool),
+      ),
+    );
+
+    const withImages = pools
+      .flat()
+      .filter((word) => Boolean(word.imageUrl));
+
+    shuffleInPlace(withImages);
+
+    return withImages.slice(0, limit).map((word) => ({
+      id: word._id,
+      label: word.label,
+      category: word.category,
+      imageUrl: word.imageUrl,
+    }));
+  },
+});
+
 export const seedInitial = mutationGeneric({
   args: {},
   handler: async (ctx) => {

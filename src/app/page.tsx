@@ -64,9 +64,14 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-5 py-8">
-      <section className="rounded-[2rem] border border-white/10 bg-white/10 p-8 shadow-2xl backdrop-blur">
-        <div>
-          <h1 className="flex max-w-none items-center gap-3 text-3xl font-black tracking-tight md:text-4xl lg:text-5xl">
+      <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/40 p-8 shadow-2xl">
+        <div className="pointer-events-none absolute inset-0 opacity-70">
+          <ContentWheel />
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/65 to-slate-950/80" />
+        <div className="relative [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
+          <div>
+            <h1 className="flex max-w-none items-center gap-3 text-3xl font-black tracking-tight md:text-4xl lg:text-5xl">
             <PokeballMark />
             <span>
               25 Words or Less:{" "}
@@ -100,9 +105,8 @@ export default function HomePage() {
             View on GitHub
           </a>
         </div>
+        </div>
       </section>
-
-      <ContentWheel />
 
       {isCreating || joiningLobbyCode ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-5 backdrop-blur-sm">
