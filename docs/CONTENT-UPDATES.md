@@ -11,6 +11,13 @@ The goal will be to look through these and sniff out any categories that can be 
 
 See `scripts/seed-content.ts` for excluded categories, custom filters, cleanup rules, and manual label overrides.
 
+#### Second Round
+
+Tropical Shell
+All mints, missing pictures at least
+
+#### First Round
+
 Noodles
 Poisonium Z Held
 X Attack 6

@@ -190,16 +190,20 @@ function WheelCard({
             : item.category === "gym_leader" || item.category === "professor"
               ? "from-orange-300/25 to-orange-300/0"
               : "from-purple-400/20 to-purple-400/0";
+  const imageClass =
+    item.category === "gym_leader" || item.category === "professor"
+      ? "h-full w-full object-cover object-top"
+      : "h-full w-full object-contain";
 
   return (
     <div className="flex w-24 shrink-0 flex-col items-center gap-2">
       <div
-        className={`grid h-20 w-20 place-items-center rounded-2xl border border-white/10 bg-linear-to-b ${accent} p-2`}
+        className={`grid h-20 w-20 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-linear-to-b ${accent} p-2`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt=""
-          className="max-h-full max-w-full object-contain"
+          className={imageClass}
           decoding="async"
           src={item.imageUrl}
           onError={() => item.imageUrl && onImageError(item.imageUrl)}

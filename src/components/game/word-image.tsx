@@ -33,6 +33,10 @@ export function WordImage({
       : fallbackImageUrl && fallbackImageUrl !== failedImageUrl
         ? fallbackImageUrl
         : undefined;
+  const imageClass =
+    category === "gym_leader" || category === "professor"
+      ? "h-full w-full object-cover object-top"
+      : "h-full w-full object-contain";
 
   if (!displayImageUrl) {
     return (
@@ -52,7 +56,7 @@ export function WordImage({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         alt={label}
-        className="max-h-full max-w-full object-contain"
+        className={imageClass}
         decoding="async"
         loading="lazy"
         onError={() => setFailedImageUrl(displayImageUrl)}
