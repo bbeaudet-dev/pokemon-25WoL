@@ -199,7 +199,7 @@ function WheelCard({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt=""
-          className="h-full w-full object-contain"
+          className="max-h-full max-w-full object-contain"
           decoding="async"
           src={item.imageUrl}
           onError={() => item.imageUrl && onImageError(item.imageUrl)}

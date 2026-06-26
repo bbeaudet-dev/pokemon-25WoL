@@ -46,14 +46,18 @@ export function WordImage({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      alt={label}
-      className={`${sizeClass} shrink-0 rounded-full bg-white object-contain`}
-      decoding="async"
-      loading="lazy"
-      onError={() => setFailedImageUrl(displayImageUrl)}
-      src={displayImageUrl}
-    />
+    <span
+      className={`${sizeClass} grid shrink-0 place-items-center overflow-hidden rounded-full bg-white`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={label}
+        className="max-h-full max-w-full object-contain"
+        decoding="async"
+        loading="lazy"
+        onError={() => setFailedImageUrl(displayImageUrl)}
+        src={displayImageUrl}
+      />
+    </span>
   );
 }

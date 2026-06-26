@@ -38,6 +38,7 @@ type ItemDetail = {
 
 type ItemSeedData = {
   excludedCategory?: string;
+  excludedReason?: string;
   imageUrl?: string;
 };
 
@@ -91,12 +92,48 @@ const detailFetchConcurrency = 20;
 const maxMutationAttempts = 3;
 const excludedItemCategories = new Set([
   "all-machines",
+  "curry-ingredients",
   "data-cards",
   "dynamax-crystals",
   "picnic",
+  "sandwich-ingredients",
+  "species-candies",
+  "tera-shard",
   "tm-materials",
   "unused",
+  "z-crystals",
+  "miracle-shooter",
 ]);
+
+const excludedItemNamePatterns: Array<{
+  pattern: RegExp;
+  reason: string;
+}> = [
+  {
+    pattern: /^(health|mighty|tough|smart|courage|quick)-candy(?:-(?:l|xl))?$/,
+    reason: "stat candy",
+  },
+  {
+    pattern: /^(health|muscle|resist|genius|clever|swift|fresh-start)-mochi$/,
+    reason: "mochi",
+  },
+  { pattern: /^(coupon|gram)-\d+$/, reason: "numbered plot item" },
+  {
+    pattern: /^legendary-clue(?:-\d+|-question)$/,
+    reason: "legendary clue",
+  },
+];
+
+const labelOverrides: Partial<Record<ContentCategory, Record<string, string>>> = {
+  ability: {
+    "rks-system": "RKS System (Ability)",
+  },
+  game: {
+    "green-japan": "Pokemon Green",
+    "legends-za": "Pokemon Legends Z-A",
+    xd: "Pokemon XD Gale of Darkness",
+  },
+};
 
 function curatedWord(
   label: string,
@@ -393,7 +430,17 @@ async function getItemSeedData(sourceUrl: string): Promise<ItemSeedData> {
   const item = await fetchJson<ItemDetail>(sourceUrl);
 
   if (excludedItemCategories.has(item.category.name)) {
-    return { excludedCategory: item.category.name };
+    return {
+      excludedCategory: item.category.name,
+      excludedReason: `item category: ${item.category.name}`,
+    };
+  }
+
+  const excludedPattern = excludedItemNamePatterns.find(({ pattern }) =>
+    pattern.test(idFromUrl(sourceUrl) ?? ""),
+  );
+  if (excludedPattern) {
+    return { excludedReason: `item pattern: ${excludedPattern.reason}` };
   }
 
   return { imageUrl: item.sprites.default ?? undefined };
@@ -403,6 +450,73 @@ function labelFor(name: string, labelPrefix?: string, labelSuffix?: string) {
   const label = titleCase(name);
   const prefixedLabel = labelPrefix ? `${labelPrefix} ${label}` : label;
   return labelSuffix ? `${prefixedLabel} ${labelSuffix}` : prefixedLabel;
+}
+
+function labelForResource(
+  name: string,
+  category: ContentCategory,
+  labelPrefix?: string,
+  labelSuffix?: string,
+) {
+  return labelOverrides[category]?.[name] ?? labelFor(name, labelPrefix, labelSuffix);
+}
+
+function endpointExclusionReason(category: ContentCategory, name: string) {
+  if (category === "game" && ["blue-japan", "red-japan"].includes(name)) {
+    return "country-specific duplicate game";
+  }
+
+  if (category !== "town") {
+    return undefined;
+  }
+
+  if (name.includes("route")) {
+    return "route location";
+  }
+
+  if (name.includes("event") || name.startsWith("pokemon-festa")) {
+    return "event location";
+  }
+
+  if (/^paldea-(east|north|south|west)-province-area-/.test(name)) {
+    return "paldea province area";
+  }
+
+  return undefined;
+}
+
+function trackSkippedReason(
+  skippedByReason: Map<string, string[]>,
+  reason: string,
+  identifier: string,
+) {
+  const examples = skippedByReason.get(reason) ?? [];
+  examples.push(identifier);
+  skippedByReason.set(reason, examples);
+}
+
+function addRemovalSourceId(
+  removedSourceIds: Map<ContentCategory, Set<string>>,
+  category: ContentCategory,
+  sourceId?: string,
+) {
+  if (!sourceId) {
+    return;
+  }
+
+  const categoryIds = removedSourceIds.get(category) ?? new Set<string>();
+  categoryIds.add(sourceId);
+  removedSourceIds.set(category, categoryIds);
+}
+
+function addRemovalLabel(
+  removedLabels: Map<ContentCategory, Set<string>>,
+  category: ContentCategory,
+  label: string,
+) {
+  const categoryLabels = removedLabels.get(category) ?? new Set<string>();
+  categoryLabels.add(label);
+  removedLabels.set(category, categoryLabels);
 }
 
 function chunk<T>(items: T[], size: number) {
@@ -498,48 +612,78 @@ async function main() {
   const missingImages = new Map<ContentCategory, number>();
   const removedSourceIds = new Map<ContentCategory, Set<string>>();
   const removedLabels = new Map<ContentCategory, Set<string>>();
+  const skippedByReason = new Map<string, string[]>();
 
   for (const config of endpointConfigs) {
     const list = await fetchEndpoint(config.endpoint);
-    const accepted = config.filter
-      ? list.results.filter(config.filter)
-      : list.results;
 
     const endpointWords = await mapWithConcurrency(
       list.results,
       detailFetchConcurrency,
       async (result) => {
+        const sourceId = idFromUrl(result.url);
+
         if (config.filter && !config.filter(result)) {
           skipped.push(`${config.endpoint}:${result.name}`);
+          trackSkippedReason(
+            skippedByReason,
+            "endpoint filter",
+            `${config.endpoint}:${result.name}`,
+          );
+          addRemovalSourceId(removedSourceIds, config.category, sourceId);
           return null;
         }
 
-        const sourceId = idFromUrl(result.url);
+        const endpointReason = endpointExclusionReason(
+          config.category,
+          result.name,
+        );
+        if (endpointReason) {
+          skipped.push(`${config.endpoint}:${result.name} (${endpointReason})`);
+          trackSkippedReason(
+            skippedByReason,
+            endpointReason,
+            `${config.endpoint}:${result.name}`,
+          );
+          addRemovalSourceId(removedSourceIds, config.category, sourceId);
+          return null;
+        }
+
         const itemSeedData =
           config.category === "item" ? await getItemSeedData(result.url) : {};
 
-        if (itemSeedData.excludedCategory) {
+        if (itemSeedData.excludedReason) {
           skipped.push(
-            `${config.endpoint}:${result.name} (${itemSeedData.excludedCategory})`,
+            `${config.endpoint}:${result.name} (${itemSeedData.excludedReason})`,
           );
-
-          if (sourceId) {
-            const categoryIds =
-              removedSourceIds.get(config.category) ?? new Set<string>();
-            categoryIds.add(sourceId);
-            removedSourceIds.set(config.category, categoryIds);
-          }
+          trackSkippedReason(
+            skippedByReason,
+            itemSeedData.excludedReason,
+            `${config.endpoint}:${result.name}`,
+          );
+          addRemovalSourceId(removedSourceIds, config.category, sourceId);
 
           return null;
         }
 
-        const label = labelFor(result.name, config.labelPrefix, config.labelSuffix);
+        const defaultLabel = labelFor(
+          result.name,
+          config.labelPrefix,
+          config.labelSuffix,
+        );
+        const label = labelForResource(
+          result.name,
+          config.category,
+          config.labelPrefix,
+          config.labelSuffix,
+        );
+        if (label !== defaultLabel) {
+          addRemovalLabel(removedLabels, config.category, defaultLabel);
+        }
+
         if (config.labelSuffix) {
           const legacyLabel = labelFor(result.name, config.labelPrefix);
-          const categoryLabels =
-            removedLabels.get(config.category) ?? new Set<string>();
-          categoryLabels.add(legacyLabel);
-          removedLabels.set(config.category, categoryLabels);
+          addRemovalLabel(removedLabels, config.category, legacyLabel);
         }
 
         const word: SeedWord = {
@@ -579,6 +723,7 @@ async function main() {
       wordsByKey.set(key, word);
     }
 
+    const accepted = endpointWords.filter(Boolean);
     console.log(
       `${config.endpoint}: accepted ${accepted.length} of ${list.count} ${config.category} records.`,
     );
@@ -631,6 +776,18 @@ async function main() {
   console.log(`Seeded ${seededCount} content words.`);
   console.log("Counts by category:", countByCategory(words));
   console.log(`Skipped records: ${skipped.length}`);
+  console.log(
+    "Skipped records by reason:",
+    Object.fromEntries(
+      Array.from(skippedByReason.entries()).map(([reason, examples]) => [
+        reason,
+        {
+          count: examples.length,
+          examples: examples.slice(0, 20),
+        },
+      ]),
+    ),
+  );
   console.log(`Duplicate category/label records: ${duplicates.length}`);
   console.log("Missing images by category:", Object.fromEntries(missingImages));
 
