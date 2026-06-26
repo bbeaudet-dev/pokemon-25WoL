@@ -21,7 +21,12 @@ const contentCategory = v.union(
 );
 
 const gameSettingsValidator = v.object({
-  mode: v.union(v.literal("classic"), v.literal("advanced"), v.literal("custom")),
+  mode: v.union(
+    v.literal("chill"),
+    v.literal("classic"),
+    v.literal("advanced"),
+    v.literal("custom"),
+  ),
   isPrivate: v.boolean(),
   hintGiverTurnsPerPlayer: v.number(),
   targetWordsPerRound: v.number(),

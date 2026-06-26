@@ -6,18 +6,36 @@ import type {
   TargetWord,
 } from "./types";
 
-export const classicCategories: ContentCategory[] = [
+export const categoryDifficultyOrder: ContentCategory[] = [
   "pokemon",
   "game",
-  "professor",
+  "type",
   "item",
-  "gym_leader",
   "region",
+  "professor",
+  "gym_leader",
+  "badge",
+  "town",
+  "move",
+  "ability",
+];
+
+export const chillCategories: ContentCategory[] = [
+  "pokemon",
+  "game",
+  "type",
+];
+
+export const classicCategories: ContentCategory[] = [
+  ...chillCategories,
+  "item",
+  "region",
+  "professor",
+  "gym_leader",
 ];
 
 export const advancedCategories: ContentCategory[] = [
   ...classicCategories,
-  "type",
   "badge",
   "town",
   "move",
@@ -35,7 +53,7 @@ export const categoryLabels: Record<ContentCategory, string> = {
   professor: "Professors",
   region: "Regions",
   terminology: "Terminology",
-  town: "Towns",
+  town: "Locations/Routes",
   type: "Types",
 };
 
@@ -44,7 +62,7 @@ export function formatCategoryLabel(category: ContentCategory) {
 }
 
 export const defaultGameSettings: GameSettings = {
-  mode: "classic",
+  mode: "chill",
   isPrivate: false,
   hintGiverTurnsPerPlayer: 1,
   targetWordsPerRound: 10,
@@ -52,7 +70,7 @@ export const defaultGameSettings: GameSettings = {
   hardWordLimit: 40,
   pointsPerRemainingWord: 1,
   pointsPerCorrectGuess: 1,
-  categories: classicCategories,
+  categories: chillCategories,
   targetSelection: "random",
 };
 

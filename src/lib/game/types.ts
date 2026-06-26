@@ -1,4 +1,4 @@
-export type GameMode = "classic" | "advanced" | "custom";
+export type GameMode = "chill" | "classic" | "advanced" | "custom";
 
 export type LobbyVisibility = "public" | "private";
 

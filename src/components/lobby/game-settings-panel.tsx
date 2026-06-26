@@ -3,13 +3,34 @@
 import type { LobbyDetails } from "@/lib/convex-api";
 import {
   advancedCategories,
+  categoryDifficultyOrder,
+  chillCategories,
   classicCategories,
   formatCategoryLabel,
   makeGameSettings,
 } from "@/lib/game/rules";
 import type { ContentCategory, GameMode } from "@/lib/game/types";
 
-const customCategoryOptions = advancedCategories;
+const modeOptions: GameMode[] = ["chill", "classic", "advanced", "custom"];
+const modeButtonClasses: Record<GameMode, { active: string; inactive: string }> = {
+  chill: {
+    active: "bg-lime-200 text-black",
+    inactive: "bg-lime-200/10 text-lime-100",
+  },
+  classic: {
+    active: "bg-yellow-300 text-black",
+    inactive: "bg-yellow-300/10 text-yellow-100",
+  },
+  advanced: {
+    active: "bg-orange-500 text-black",
+    inactive: "bg-orange-500/10 text-orange-100",
+  },
+  custom: {
+    active: "bg-purple-300 text-black",
+    inactive: "bg-purple-300/10 text-purple-100",
+  },
+};
+const customCategoryOptions = categoryDifficultyOrder;
 
 type UpdateSettings = (args: {
   lobbyId: LobbyDetails["id"];
@@ -68,7 +89,9 @@ export function GameSettingsPanel({
             : advancedCategories
           : mode === "advanced"
             ? advancedCategories
-            : classicCategories,
+            : mode === "classic"
+              ? classicCategories
+              : chillCategories,
     });
   }
 
@@ -111,19 +134,22 @@ export function GameSettingsPanel({
           </p>
           {isHost ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              {(["classic", "advanced", "custom"] as const).map((mode) => (
-                <button
-                  className={`min-w-24 rounded-xl px-3 py-2 font-black capitalize ${
-                    lobby.settings.mode === mode
-                      ? "bg-yellow-300 text-black"
-                      : "bg-black/30 text-slate-200"
-                  }`}
-                  key={mode}
-                  onClick={() => handleModeChange(mode)}
-                >
-                  {mode}
-                </button>
-              ))}
+              {modeOptions.map((mode) => {
+                const isSelected = lobby.settings.mode === mode;
+                const classes = modeButtonClasses[mode];
+
+                return (
+                  <button
+                    className={`min-w-24 rounded-xl px-3 py-2 font-black capitalize transition ${
+                      isSelected ? classes.active : classes.inactive
+                    }`}
+                    key={mode}
+                    onClick={() => handleModeChange(mode)}
+                  >
+                    {mode}
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <p className="mt-2 text-xl font-black capitalize">
@@ -174,13 +200,16 @@ export function GameSettingsPanel({
                     })
                   }
                 >
-                  {selection}
+                  {selection === "random" ? "Randomized" : "Manual"}
                 </button>
               ))}
             </div>
           ) : (
             <p className="mt-2 text-sm font-bold capitalize text-slate-400">
-              {lobby.settings.targetSelection} selection
+              {lobby.settings.targetSelection === "random"
+                ? "Randomized"
+                : "Manual"}{" "}
+              selection
             </p>
           )}
         </div>

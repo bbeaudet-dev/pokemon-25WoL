@@ -17,6 +17,7 @@ const contentCategory = v.union(
 );
 
 const gameMode = v.union(
+  v.literal("chill"),
   v.literal("classic"),
   v.literal("advanced"),
   v.literal("custom"),
