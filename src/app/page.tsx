@@ -14,7 +14,9 @@ const lobbiesPerPage = 10;
 export default function HomePage() {
   const router = useRouter();
   const { identity, updateDisplayName, isReady } = useGuestIdentity();
-  const lobbies = useQuery(convexApi.lobbies.listOpen, {});
+  const lobbyData = useQuery(convexApi.lobbies.listOpen, {});
+  const lobbies = lobbyData?.joinable;
+  const lobbyStats = lobbyData?.stats;
   const createLobby = useMutation(convexApi.lobbies.create);
   const joinLobby = useMutation(convexApi.lobbies.join);
   const [joinCode, setJoinCode] = useState("");
@@ -161,7 +163,7 @@ export default function HomePage() {
       <section className="grid items-start gap-5 lg:grid-cols-[0.9fr_1.5fr]">
         <div className="order-2 rounded-4xl border border-white/10 bg-slate-950/70 p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-2xl font-black">Active Lobbies</h2>
+            <h2 className="text-2xl font-black">Game Lobbies</h2>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-white/10">
@@ -172,11 +174,11 @@ export default function HomePage() {
               <span className="text-center">Action</span>
             </div>
             <div className="divide-y divide-white/10">
-              {lobbies === undefined ? (
+              {lobbyData === undefined ? (
                 <p className="px-4 py-6 text-slate-300">Loading lobbies...</p>
-              ) : lobbies.length === 0 ? (
+              ) : lobbies?.length === 0 ? (
                 <p className="px-4 py-6 text-slate-300">
-                  No active lobbies yet. Go create one!
+                  No joinable lobbies yet. Go create one!
                 </p>
               ) : (
                 visibleLobbies?.map((lobby) => (
@@ -216,6 +218,19 @@ export default function HomePage() {
                   </div>
                 ))
               )}
+              {lobbyStats ? (
+                <>
+                  <LobbyStatRow
+                    label={`${lobbyStats.inProgressCount} ${pluralize("game", lobbyStats.inProgressCount)} in-progress`}
+                  />
+                  <LobbyStatRow
+                    label={`${lobbyStats.privateCount} private ${pluralize("game", lobbyStats.privateCount)}`}
+                  />
+                  <LobbyStatRow
+                    label={`${lobbyStats.completedCount} ${pluralize("game", lobbyStats.completedCount)} completed`}
+                  />
+                </>
+              ) : null}
             </div>
           </div>
           {lobbies && lobbies.length > lobbiesPerPage ? (
@@ -319,6 +334,18 @@ function PokeballMark() {
       <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-slate-950 bg-white" />
     </span>
   );
+}
+
+function LobbyStatRow({ label }: { label: string }) {
+  return (
+    <div className="bg-black/20 px-4 py-3 text-center text-sm font-black uppercase tracking-widest text-slate-300">
+      {label}
+    </div>
+  );
+}
+
+function pluralize(word: string, count: number) {
+  return count === 1 ? word : `${word}s`;
 }
 
 function GithubMark() {

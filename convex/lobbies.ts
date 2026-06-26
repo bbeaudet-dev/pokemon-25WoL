@@ -128,17 +128,35 @@ async function recordEvent(ctx: any, event: Record<string, unknown>) {
 export const listOpen = queryGeneric({
   args: {},
   handler: async (ctx) => {
-    const lobbies = await ctx.db
-      .query("lobbies")
-      .order("desc")
-      .take(50);
-
-    const activeLobbies = lobbies
-      .filter((lobby) => lobby.status !== "complete")
+    const [openLobbies, inProgressLobbies, completedLobbies] =
+      await Promise.all([
+        ctx.db
+          .query("lobbies")
+          .withIndex("by_status_visibility", (q) =>
+            q.eq("status", "open"),
+          )
+          .order("desc")
+          .collect(),
+        ctx.db
+          .query("lobbies")
+          .withIndex("by_status_visibility", (q) =>
+            q.eq("status", "in_progress"),
+          )
+          .collect(),
+        ctx.db
+          .query("lobbies")
+          .withIndex("by_status_visibility", (q) => q.eq("status", "complete"))
+          .collect(),
+      ]);
+    const joinableLobbies = openLobbies
+      .filter((lobby) => lobby.visibility === "public")
       .slice(0, 25);
+    const privateOpenCount = openLobbies.filter(
+      (lobby) => lobby.visibility === "private",
+    ).length;
 
-    return await Promise.all(
-      activeLobbies.map(async (lobby) => {
+    const joinable = await Promise.all(
+      joinableLobbies.map(async (lobby) => {
         const players = await getLobbyPlayers(ctx, lobby._id);
         const host = players.find((player) => player.isHost);
 
@@ -155,6 +173,15 @@ export const listOpen = queryGeneric({
         };
       }),
     );
+
+    return {
+      joinable,
+      stats: {
+        completedCount: completedLobbies.length,
+        inProgressCount: inProgressLobbies.length,
+        privateCount: privateOpenCount,
+      },
+    };
   },
 });
 
