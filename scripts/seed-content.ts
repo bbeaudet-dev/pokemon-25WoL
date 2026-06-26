@@ -34,6 +34,11 @@ type ItemSeedData = {
   imageUrl?: string;
 };
 
+type CuratedImageSource = {
+  provider: "fandom-page-image";
+  title: string;
+};
+
 const upsertMany = makeFunctionReference<
   "mutation",
   { words: SeedWord[] },
@@ -79,6 +84,34 @@ const excludedItemCategories = new Set([
   "tm-materials",
   "unused",
 ]);
+
+const curatedImageSources: Record<string, CuratedImageSource> = {
+  "professor-oak": { provider: "fandom-page-image", title: "Professor Oak" },
+  "professor-elm": { provider: "fandom-page-image", title: "Professor Elm" },
+  "professor-birch": { provider: "fandom-page-image", title: "Professor Birch" },
+  "professor-rowan": { provider: "fandom-page-image", title: "Professor Rowan" },
+  "professor-juniper": {
+    provider: "fandom-page-image",
+    title: "Professor Juniper",
+  },
+  "professor-sycamore": {
+    provider: "fandom-page-image",
+    title: "Professor Sycamore",
+  },
+  "professor-kukui": { provider: "fandom-page-image", title: "Professor Kukui" },
+  "professor-magnolia": {
+    provider: "fandom-page-image",
+    title: "Professor Magnolia",
+  },
+  "professor-sonia": { provider: "fandom-page-image", title: "Sonia" },
+  "professor-laventon": {
+    provider: "fandom-page-image",
+    title: "Professor Laventon",
+  },
+  "professor-sada": { provider: "fandom-page-image", title: "Professor Sada" },
+  "professor-turo": { provider: "fandom-page-image", title: "Professor Turo" },
+  "professor-krane": { provider: "fandom-page-image", title: "Professor Krane" },
+};
 
 function curatedWord(
   label: string,
@@ -369,6 +402,41 @@ async function imageUrlFor(
   return undefined;
 }
 
+async function curatedImageUrlFor(sourceId?: string) {
+  if (!sourceId) {
+    return undefined;
+  }
+
+  const source = curatedImageSources[sourceId];
+  if (!source) {
+    return undefined;
+  }
+
+  if (source.provider === "fandom-page-image") {
+    const params = new URLSearchParams({
+      action: "query",
+      titles: source.title,
+      prop: "pageimages",
+      format: "json",
+      pithumbsize: "500",
+    });
+    const response = await fetchJson<{
+      query?: {
+        pages?: Record<
+          string,
+          { thumbnail?: { source?: string; width?: number; height?: number } }
+        >;
+      };
+    }>(`https://pokemon.fandom.com/api.php?${params.toString()}`);
+
+    return Object.values(response.query?.pages ?? {}).find(
+      (page) => page.thumbnail?.source,
+    )?.thumbnail?.source;
+  }
+
+  return undefined;
+}
+
 async function getItemSeedData(sourceUrl: string): Promise<ItemSeedData> {
   const item = await fetchJson<ItemDetail>(sourceUrl);
 
@@ -453,7 +521,7 @@ async function fetchJson<T>(url: string) {
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`PokeAPI request failed: ${url} returned ${response.status}`);
+    throw new Error(`Request failed: ${url} returned ${response.status}`);
   }
 
   return (await response.json()) as T;
@@ -555,6 +623,19 @@ async function main() {
   }
 
   for (const word of curatedContentWords) {
+    let imageUrl = word.imageUrl;
+    if (!imageUrl) {
+      try {
+        imageUrl = await curatedImageUrlFor(word.sourceId);
+      } catch (error) {
+        console.warn(
+          `Unable to fetch curated image for ${word.sourceId ?? word.label}:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    const wordWithImage = imageUrl ? { ...word, imageUrl } : word;
     const key = getContentIdentityKey(word.category, word.label);
 
     if (wordsByKey.has(key)) {
@@ -562,14 +643,14 @@ async function main() {
       continue;
     }
 
-    if (!word.imageUrl) {
+    if (!wordWithImage.imageUrl) {
       missingImages.set(
         word.category,
         (missingImages.get(word.category) ?? 0) + 1,
       );
     }
 
-    wordsByKey.set(key, word);
+    wordsByKey.set(key, wordWithImage);
   }
   console.log(`curated: accepted ${curatedContentWords.length} records.`);
 
