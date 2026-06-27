@@ -449,58 +449,40 @@ function TargetRail({
           const showReroll =
             isHintmaster && isCurrent && round.status === "active" && !solved;
           return (
-            <div className="flex items-center gap-2" key={`${target.contentId}-${index}`}>
-              <div
-                className={`font-display clip-score flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-sm font-black text-black ${
-                  solved
-                    ? "bg-green-200"
-                    : isCurrent
-                      ? "bg-yellow-300"
-                      : "bg-white"
-                }`}
-              >
-                <span className="ml-2 rounded bg-yellow-200 px-2 py-1 text-xs">
-                  {index + 1}
-                </span>
-                {visible ? (
-                  <WordImage
-                    category={target.category}
-                    imageUrl={target.imageUrl}
-                    label={target.label}
-                  />
-                ) : null}
-                <span className="min-w-0 flex-1 truncate">
-                  {visible ? target.label : "Hidden"}
-                </span>
-                {solved ? (
-                  <span className="flex shrink-0 -space-x-1">
-                    {target.solvedByPlayerIds.map((playerId) => {
-                      const player = players.find(
-                        (player) => player.id === playerId,
-                      );
-                      const displayName = player?.displayName ?? "Player";
-                      return (
-                        <PlayerAvatar
-                          className="ring-2 ring-green-200"
-                          displayName={displayName}
-                          imageUrl={player?.imageUrl}
-                          key={playerId}
-                          size="sm"
-                        />
-                      );
-                    })}
-                  </span>
-                ) : null}
-              </div>
+            <div
+              className={`font-display clip-score flex items-center gap-2 py-2 pl-3 text-sm font-black text-black ${
+                showReroll ? "pr-6" : "px-3"
+              } ${
+                solved
+                  ? "bg-green-200"
+                  : isCurrent
+                    ? "bg-yellow-300"
+                    : "bg-white"
+              }`}
+              key={`${target.contentId}-${index}`}
+            >
+              <span className="ml-2 rounded bg-yellow-200 px-2 py-1 text-xs">
+                {index + 1}
+              </span>
+              {visible ? (
+                <WordImage
+                  category={target.category}
+                  imageUrl={target.imageUrl}
+                  label={target.label}
+                />
+              ) : null}
+              <span className="min-w-0 flex-1 truncate">
+                {visible ? target.label : "Hidden"}
+              </span>
               {showReroll ? (
                 <button
                   aria-label="Reroll current target"
-                  className={`font-display flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl font-black text-black transition disabled:cursor-not-allowed ${
+                  className={`font-display flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black transition disabled:cursor-not-allowed ${
                     !canReroll
                       ? "bg-slate-500 text-white opacity-70"
                       : isRerolling
-                        ? "bg-purple-200"
-                        : "bg-purple-400 hover:bg-purple-300"
+                        ? "bg-purple-200 text-black"
+                        : "bg-purple-500 text-white hover:bg-purple-400"
                   }`}
                   disabled={isRerolling || !canReroll}
                   onClick={handleReroll}
@@ -515,12 +497,31 @@ function TargetRail({
                   }
                 >
                   <RotateCcw
-                    className={`h-4 w-4 ${isRerolling ? "animate-spin" : ""}`}
+                    className={`h-3.5 w-3.5 ${isRerolling ? "animate-spin" : ""}`}
                   />
-                  <span className="mt-0.5 text-[9px] leading-none">
+                  <span className="leading-none">
                     {nextRerollCost === 0 ? "FREE" : nextRerollCost}
                   </span>
                 </button>
+              ) : null}
+              {solved ? (
+                <span className="flex shrink-0 -space-x-1">
+                  {target.solvedByPlayerIds.map((playerId) => {
+                    const player = players.find(
+                      (player) => player.id === playerId,
+                    );
+                    const displayName = player?.displayName ?? "Player";
+                    return (
+                      <PlayerAvatar
+                        className="ring-2 ring-green-200"
+                        displayName={displayName}
+                        imageUrl={player?.imageUrl}
+                        key={playerId}
+                        size="sm"
+                      />
+                    );
+                  })}
+                </span>
               ) : null}
             </div>
           );
