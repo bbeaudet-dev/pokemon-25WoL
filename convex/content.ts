@@ -1,7 +1,7 @@
 import { mutationGeneric, queryGeneric } from "convex/server";
 import { v } from "convex/values";
 import { initialContentWords, toSeedRecord } from "../src/lib/content/initial-content";
-import { normalizeWord } from "../src/lib/game/rules";
+import { categoryDifficultyOrder, normalizeWord } from "../src/lib/game/rules";
 
 const contentCategory = v.union(
   v.literal("pokemon"),
@@ -120,6 +120,58 @@ export const search = queryGeneric({
         sourceId: word.sourceId,
         sourceUrl: word.sourceUrl,
       }));
+  },
+});
+
+// A hand-picked representative word per category, used to give each category a
+// recognizable avatar in the lobby. If the preferred word is missing or has no
+// image, we fall back to the first image-backed word in that category.
+const categoryRepresentativeLabels: Record<string, string> = {
+  pokemon: "Pikachu",
+  game: "Pokemon Emerald",
+  type: "Fire",
+  item: "Poke Ball",
+  region: "Kanto",
+  professor: "Professor Oak",
+  gym_leader: "Brock",
+  badge: "Boulder Badge",
+  town: "Pallet Town",
+  move: "Thunderbolt",
+  ability: "Levitate",
+};
+
+export const categoryAvatars = queryGeneric({
+  args: {},
+  handler: async (ctx) => {
+    const avatars: Record<string, string> = {};
+
+    for (const category of categoryDifficultyOrder) {
+      const preferredLabel = categoryRepresentativeLabels[category];
+      let chosen = preferredLabel
+        ? await ctx.db
+            .query("content")
+            .withIndex("by_category_normalizedLabel", (q) =>
+              (q as any)
+                .eq("category", category)
+                .eq("normalizedLabel", normalizeWord(preferredLabel)),
+            )
+            .unique()
+        : null;
+
+      if (!chosen?.imageUrl) {
+        const candidates = await ctx.db
+          .query("content")
+          .withIndex("by_category", (q) => q.eq("category", category))
+          .take(100);
+        chosen = candidates.find((word) => Boolean(word.imageUrl)) ?? chosen;
+      }
+
+      if (chosen?.imageUrl) {
+        avatars[category] = chosen.imageUrl;
+      }
+    }
+
+    return avatars;
   },
 });
 

@@ -1,6 +1,10 @@
 "use client";
 
-import type { LobbyDetails } from "@/lib/convex-api";
+import { useQuery } from "convex/react";
+import { Info } from "lucide-react";
+import { useState } from "react";
+import { WordImage } from "@/components/game/word-image";
+import { convexApi, type LobbyDetails } from "@/lib/convex-api";
 import {
   advancedCategories,
   categoryDifficultyOrder,
@@ -10,6 +14,59 @@ import {
   makeGameSettings,
 } from "@/lib/game/rules";
 import type { ContentCategory, GameMode } from "@/lib/game/types";
+
+const settingInfo = {
+  mode: "Classic mode is closest to what is featured on ZaneGames' channel. Chill mode has more of a focus on just Pokemon, while Advanced mode expands the potential wordbank to include everything from items, characters, moves, abilities, game locations, and more. Custom mode allows you to customize every aspect of the game to your liking.",
+  targets:
+    "Set the amount of target words to be guessed each round. Manual targets allows each player to choose their own words for the other players to guess, while Randomized does this automatically.",
+  hints:
+    "Set how many points are awarded for each remaining hint at the end of a round - these apply to the first limit (25 by default). Additional hints past this first limit will start to incur negative points up until the second limit (40 by default) is reached.",
+  rounds:
+    "A single Round consists of one player becoming the hintmaster and either successfully having all their target words guessed, or failing to do so within the hint limits. Here you can set how many times each player will become the hintmaster.",
+} as const;
+
+function SettingHeader({
+  title,
+  info,
+}: {
+  title: string;
+  info: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+        {title}
+      </p>
+      <InfoBubble label={title} text={info} />
+    </div>
+  );
+}
+
+function InfoBubble({ label, text }: { label: string; text: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <span className="relative inline-flex">
+      <button
+        aria-expanded={open}
+        aria-label={`More info about ${label}`}
+        className="grid h-4 w-4 place-items-center rounded-full text-slate-500 transition hover:text-yellow-300"
+        onBlur={() => setOpen(false)}
+        onClick={() => setOpen(true)}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        type="button"
+      >
+        <Info className="h-4 w-4" />
+      </button>
+      {open ? (
+        <span className="absolute left-1/2 top-6 z-30 w-64 max-w-[80vw] -translate-x-1/2 rounded-xl border border-white/15 bg-slate-900 px-3 py-2 text-xs font-medium normal-case leading-relaxed tracking-normal text-slate-200 shadow-xl">
+          {text}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 const modeOptions: GameMode[] = ["chill", "classic", "advanced", "custom"];
 const modeButtonClasses: Record<GameMode, { active: string; inactive: string }> = {
@@ -54,6 +111,10 @@ export function GameSettingsPanel({
   onError,
   updateSettings,
 }: GameSettingsPanelProps) {
+  const categoryAvatars = useQuery(convexApi.content.categoryAvatars);
+  const totalRounds =
+    lobby.settings.hintGiverTurnsPerPlayer * Math.max(lobby.players.length, 1);
+
   async function runSettingsAction(action: () => Promise<unknown>) {
     onError(null);
     try {
@@ -129,9 +190,7 @@ export function GameSettingsPanel({
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            Mode
-          </p>
+          <SettingHeader title="Mode" info={settingInfo.mode} />
           {isHost ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {modeOptions.map((mode) => {
@@ -158,9 +217,7 @@ export function GameSettingsPanel({
           )}
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            Targets
-          </p>
+          <SettingHeader title="Targets" info={settingInfo.targets} />
           {isHost && lobby.settings.mode === "custom" ? (
             <label className="mt-3 flex items-center gap-3 text-sm font-bold text-slate-200">
               <input
@@ -214,9 +271,7 @@ export function GameSettingsPanel({
           )}
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            Hint Limits
-          </p>
+          <SettingHeader title="Hints" info={settingInfo.hints} />
           {isHost ? (
             <div className="mt-3">
               <p className="text-sm font-bold leading-9 text-slate-200">
@@ -279,30 +334,41 @@ export function GameSettingsPanel({
           )}
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            Hintmaster Turns
-          </p>
+          <SettingHeader title="Rounds" info={settingInfo.rounds} />
           {isHost ? (
-            <label className="mt-3 flex items-center gap-3 text-sm font-bold text-slate-200">
-              <input
-                aria-label="Times each player is Hintmaster"
-                className="w-16 rounded-xl bg-black/30 px-3 py-2 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
-                min={1}
-                max={5}
-                type="number"
-                value={lobby.settings.hintGiverTurnsPerPlayer}
-                onChange={(event) =>
-                  updateGameSettings({
-                    hintGiverTurnsPerPlayer: Number(event.currentTarget.value),
-                  })
-                }
-              />
-              <span>per player</span>
-            </label>
+            <div className="mt-3">
+              <label className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-200">
+                <span>Each player becomes hintmaster</span>
+                <input
+                  aria-label="Times each player is Hintmaster"
+                  className="w-16 rounded-xl bg-black/30 px-3 py-2 text-center font-black text-white outline-none ring-yellow-300/0 transition focus:ring-4"
+                  min={1}
+                  max={5}
+                  type="number"
+                  value={lobby.settings.hintGiverTurnsPerPlayer}
+                  onChange={(event) =>
+                    updateGameSettings({
+                      hintGiverTurnsPerPlayer: Number(event.currentTarget.value),
+                    })
+                  }
+                />
+                <span>times</span>
+              </label>
+              <p className="mt-2 text-xs font-bold text-slate-500">
+                ({totalRounds} total round{totalRounds === 1 ? "" : "s"})
+              </p>
+            </div>
           ) : (
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-200">
-              {lobby.settings.hintGiverTurnsPerPlayer} per player
-            </p>
+            <div className="mt-2">
+              <p className="text-sm font-bold leading-6 text-slate-200">
+                Each player becomes hintmaster{" "}
+                {lobby.settings.hintGiverTurnsPerPlayer} time
+                {lobby.settings.hintGiverTurnsPerPlayer === 1 ? "" : "s"}
+              </p>
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                ({totalRounds} total round{totalRounds === 1 ? "" : "s"})
+              </p>
+            </div>
           )}
         </div>
       </div>
@@ -325,7 +391,7 @@ export function GameSettingsPanel({
 
             return (
               <button
-                className={`rounded-full px-3 py-2 text-sm font-black transition ${
+                className={`flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3 text-sm font-black transition ${
                   isSelected
                     ? "bg-yellow-300 text-black ring-2 ring-yellow-100/70 hover:ring-4"
                     : "bg-black/30 text-slate-300"
@@ -340,6 +406,12 @@ export function GameSettingsPanel({
                 key={category}
                 onClick={() => handleCategoryToggle(category)}
               >
+                <WordImage
+                  category={category}
+                  imageUrl={categoryAvatars?.[category]}
+                  label={formatCategoryLabel(category)}
+                  size="sm"
+                />
                 {formatCategoryLabel(category)}
               </button>
             );
