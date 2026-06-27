@@ -8,7 +8,11 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import type { GuestIdentity } from "@/lib/guest";
 import { PlayerAvatar } from "@/components/player-avatar";
 import { convexApi, type GameRoom } from "@/lib/convex-api";
-import { formatCategoryLabel } from "@/lib/game/rules";
+import {
+  canRerollWithinScoringLimit,
+  formatCategoryLabel,
+  getRerollWordCost,
+} from "@/lib/game/rules";
 import { Scoreboard } from "./scoreboard";
 import { TargetConfirmModal } from "./target-confirm-modal";
 import { WordImage } from "./word-image";
@@ -159,9 +163,11 @@ export function GameRoomBoard({
 
         <TargetRail
           isHintmaster={isHintmaster}
-          targetWords={round.targetWords}
-          currentTargetIndex={round.currentTargetIndex}
+          round={round}
+          settings={room.game.settings}
+          guestId={identity.guestId}
           players={room.players}
+          onError={onError}
         />
       </section>
 
@@ -243,7 +249,8 @@ function EndTurnConfirmModal({
         </p>
         <h2 className="mt-2 text-3xl font-black">End your hintmaster turn?</h2>
         <p className="mt-3 text-slate-300">
-          This will stop the current turn and score your remaining hint words.
+          Ending early forfeits all of your hintmaster points for this round.
+          Guessers keep the points they already earned.
         </p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <button
@@ -397,61 +404,123 @@ function HintWordGrid({
 
 function TargetRail({
   isHintmaster,
-  targetWords,
-  currentTargetIndex,
+  round,
+  settings,
+  guestId,
   players,
+  onError,
 }: {
   isHintmaster: boolean;
-  targetWords: NonNullable<GameRoom["round"]>["targetWords"];
-  currentTargetIndex: number;
+  round: NonNullable<GameRoom["round"]>;
+  settings: NonNullable<GameRoom["game"]>["settings"];
+  guestId: string;
   players: GameRoom["players"];
+  onError: (message: string | null) => void;
 }) {
+  const rerollCurrentTarget = useMutation(convexApi.games.rerollCurrentTarget);
+  const [isRerolling, setIsRerolling] = useState(false);
+  const { targetWords, currentTargetIndex } = round;
+  const nextRerollCost = getRerollWordCost(round.rerollCount + 1);
+  const canReroll = canRerollWithinScoringLimit(
+    round.hintWords.length,
+    nextRerollCost,
+    settings,
+  );
+
+  async function handleReroll() {
+    onError(null);
+    setIsRerolling(true);
+    try {
+      await rerollCurrentTarget({ roundId: round.id, guestId });
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to reroll target.");
+    } finally {
+      setIsRerolling(false);
+    }
+  }
+
   return (
     <aside className="rounded-4xl border border-white/10 bg-slate-950/70 p-4">
       <div className="grid gap-2">
         {targetWords.map((target, index) => {
           const solved = target.solvedByPlayerIds.length > 0;
           const visible = isHintmaster || solved;
+          const isCurrent = index === currentTargetIndex;
+          const showReroll =
+            isHintmaster && isCurrent && round.status === "active" && !solved;
           return (
-            <div
-              className={`font-display clip-score flex items-center gap-2 px-3 py-2 text-sm font-black text-black ${
-                solved
-                  ? "bg-green-200"
-                  : index === currentTargetIndex
-                    ? "bg-yellow-300"
-                    : "bg-white"
-              }`}
-              key={`${target.contentId}-${index}`}
-            >
-              <span className="ml-2 rounded bg-yellow-200 px-2 py-1 text-xs">
-                {index + 1}
-              </span>
-              {visible ? (
-                <WordImage
-                  category={target.category}
-                  imageUrl={target.imageUrl}
-                  label={target.label}
-                />
-              ) : null}
-              <span className="min-w-0 flex-1 truncate">
-                {visible ? target.label : "Hidden"}
-              </span>
-              {solved ? (
-                <span className="flex shrink-0 -space-x-1">
-                  {target.solvedByPlayerIds.map((playerId) => {
-                    const player = players.find((player) => player.id === playerId);
-                    const displayName = player?.displayName ?? "Player";
-                    return (
-                      <PlayerAvatar
-                        className="ring-2 ring-green-200"
-                        displayName={displayName}
-                        imageUrl={player?.imageUrl}
-                        key={playerId}
-                        size="sm"
-                      />
-                    );
-                  })}
+            <div className="flex items-center gap-2" key={`${target.contentId}-${index}`}>
+              <div
+                className={`font-display clip-score flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-sm font-black text-black ${
+                  solved
+                    ? "bg-green-200"
+                    : isCurrent
+                      ? "bg-yellow-300"
+                      : "bg-white"
+                }`}
+              >
+                <span className="ml-2 rounded bg-yellow-200 px-2 py-1 text-xs">
+                  {index + 1}
                 </span>
+                {visible ? (
+                  <WordImage
+                    category={target.category}
+                    imageUrl={target.imageUrl}
+                    label={target.label}
+                  />
+                ) : null}
+                <span className="min-w-0 flex-1 truncate">
+                  {visible ? target.label : "Hidden"}
+                </span>
+                {solved ? (
+                  <span className="flex shrink-0 -space-x-1">
+                    {target.solvedByPlayerIds.map((playerId) => {
+                      const player = players.find(
+                        (player) => player.id === playerId,
+                      );
+                      const displayName = player?.displayName ?? "Player";
+                      return (
+                        <PlayerAvatar
+                          className="ring-2 ring-green-200"
+                          displayName={displayName}
+                          imageUrl={player?.imageUrl}
+                          key={playerId}
+                          size="sm"
+                        />
+                      );
+                    })}
+                  </span>
+                ) : null}
+              </div>
+              {showReroll ? (
+                <button
+                  aria-label="Reroll current target"
+                  className={`font-display flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl font-black text-black transition disabled:cursor-not-allowed ${
+                    !canReroll
+                      ? "bg-slate-500 text-white opacity-70"
+                      : isRerolling
+                        ? "bg-purple-200"
+                        : "bg-purple-400 hover:bg-purple-300"
+                  }`}
+                  disabled={isRerolling || !canReroll}
+                  onClick={handleReroll}
+                  title={
+                    canReroll
+                      ? `Reroll cost: ${
+                          nextRerollCost === 0
+                            ? "FREE"
+                            : `${nextRerollCost} word${nextRerollCost === 1 ? "" : "s"}`
+                        }`
+                      : "Not enough scoring words to reroll"
+                  }
+                >
+                  <RotateCcw
+                    className={`h-4 w-4 ${isRerolling ? "animate-spin" : ""}`}
+                  />
+                  <span className="mt-0.5 text-[9px] leading-none">
+                    {nextRerollCost === 0 ? "FREE" : nextRerollCost}
+                  </span>
+                </button>
               ) : null}
             </div>
           );

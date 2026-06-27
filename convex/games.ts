@@ -97,15 +97,63 @@ async function selectTargetWords(ctx: any, settings: any) {
   return targetWords;
 }
 
+async function selectReplacementTarget(
+  ctx: any,
+  settings: any,
+  existingTargets: any[],
+  targetIndex: number,
+) {
+  const replaced = existingTargets[targetIndex];
+  const existingIds = new Set(
+    existingTargets.map((target) => String(target.contentId)),
+  );
+
+  // Prefer a replacement from the same category to keep the round's mix intact,
+  // then fall back to any enabled category if that pool is exhausted.
+  const sameCategory = await ctx.db
+    .query("content")
+    .withIndex("by_category", (q: any) => q.eq("category", replaced.category))
+    .collect();
+  let pool = sameCategory.filter(
+    (word: any) => !existingIds.has(String(word._id)),
+  );
+
+  if (pool.length === 0) {
+    const byCategory = await Promise.all(
+      settings.categories.map((category: string) =>
+        ctx.db
+          .query("content")
+          .withIndex("by_category", (q: any) => q.eq("category", category))
+          .collect(),
+      ),
+    );
+    pool = byCategory
+      .flat()
+      .filter((word: any) => !existingIds.has(String(word._id)));
+  }
+
+  if (pool.length === 0) {
+    throw new Error("No replacement target is available to reroll.");
+  }
+
+  const choice = pool[Math.floor(Math.random() * pool.length)];
+  return toTargetWord(choice);
+}
+
 async function createRound(ctx: any, game: any, hintGiverPlayerId: string) {
   const now = Date.now();
   const targetWords = await selectTargetWords(ctx, game.settings);
+
+  // Random rounds skip the setup step entirely now that rerolls happen mid-round.
+  // Manual rounds stay in setup so the hintmaster can pick their targets first.
+  const status =
+    game.settings.targetSelection === "manual" ? "setup" : "active";
 
   const roundId = await ctx.db.insert("rounds", {
     gameId: game._id,
     lobbyId: game.lobbyId,
     hintGiverPlayerId,
-    status: "setup",
+    status,
     targetWords,
     currentTargetIndex: 0,
     hintWords: [],
@@ -263,7 +311,7 @@ export const start = mutationGeneric({
   },
 });
 
-export const rerollTargets = mutationGeneric({
+export const rerollCurrentTarget = mutationGeneric({
   args: {
     roundId: v.id("rounds"),
     guestId: v.string(),
@@ -274,22 +322,29 @@ export const rerollTargets = mutationGeneric({
     const game = round ? await ctx.db.get(round.gameId) : null;
 
     if (!round || !game || !player || round.hintGiverPlayerId !== player._id) {
-      throw new Error("Unable to reroll targets.");
+      throw new Error("Unable to reroll this target.");
     }
 
-    if (round.status !== "setup") {
-      throw new Error("The round has already started.");
+    if (round.status !== "active") {
+      throw new Error("You can only reroll while your turn is active.");
     }
 
+    const currentTarget = round.targetWords[round.currentTargetIndex];
+    if (!currentTarget) {
+      throw new Error("There is no current target to reroll.");
+    }
+
+    if (currentTarget.solvedByPlayerIds.length > 0) {
+      throw new Error("This target has already been solved.");
+    }
+
+    // Reroll penalties are cumulative per round (not per target), so we keep
+    // incrementing the round-level reroll count and its triangular cost.
     const nextReroll = round.rerollCount + 1;
     const cost = getRerollWordCost(nextReroll);
 
     if (
-      !canRerollWithinScoringLimit(
-        round.hintWords.length,
-        cost,
-        game.settings,
-      )
+      !canRerollWithinScoringLimit(round.hintWords.length, cost, game.settings)
     ) {
       throw new Error("Rerolling would use your remaining scoring words.");
     }
@@ -308,7 +363,15 @@ export const rerollTargets = mutationGeneric({
         cost: 1,
       };
     });
-    const targetWords = await selectTargetWords(ctx, game.settings);
+
+    const replacement = await selectReplacementTarget(
+      ctx,
+      game.settings,
+      round.targetWords,
+      round.currentTargetIndex,
+    );
+    const targetWords = [...round.targetWords];
+    targetWords[round.currentTargetIndex] = replacement;
 
     await ctx.db.patch(round._id, {
       targetWords,
@@ -321,9 +384,15 @@ export const rerollTargets = mutationGeneric({
       gameId: round.gameId,
       roundId: round._id,
       playerId: player._id,
-      type: "round.rerolled",
-      payload: { cost },
+      type: "round.target_rerolled",
+      payload: {
+        cost,
+        targetIndex: round.currentTargetIndex,
+        label: replacement.label,
+      },
     });
+
+    return { label: replacement.label, cost };
   },
 });
 
@@ -657,17 +726,15 @@ export const endTurn = mutationGeneric({
       throw new Error("This turn cannot be ended right now.");
     }
 
-    const hintGiverScore = calculateHintGiverScore(
-      round.hintWords.length,
-      game.settings,
-    );
+    // Ending a turn early forfeits the hintmaster's points for this round.
+    // Guessers keep whatever they already earned this round.
     const scores = toScoreMap(game.scores);
     const hintGiverScoreEntry = scores.get(round.hintGiverPlayerId) ?? {
       playerId: round.hintGiverPlayerId,
       totalScore: 0,
       roundScore: 0,
     };
-    hintGiverScoreEntry.roundScore += hintGiverScore;
+    hintGiverScoreEntry.roundScore = 0;
     scores.set(round.hintGiverPlayerId, hintGiverScoreEntry);
 
     await ctx.db.patch(round._id, {
@@ -685,10 +752,10 @@ export const endTurn = mutationGeneric({
       roundId: round._id,
       playerId: player._id,
       type: "round.ended_early",
-      payload: { wordsUsed: round.hintWords.length, hintGiverScore },
+      payload: { wordsUsed: round.hintWords.length, forfeited: true },
     });
 
-    return { hintGiverScore };
+    return { forfeited: true };
   },
 });
 
