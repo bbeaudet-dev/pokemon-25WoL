@@ -1,4 +1,8 @@
-import { mutationGeneric, queryGeneric } from "convex/server";
+import {
+  internalMutationGeneric,
+  mutationGeneric,
+  queryGeneric,
+} from "convex/server";
 import { v } from "convex/values";
 import {
   defaultGameSettings,
@@ -125,6 +129,90 @@ async function recordEvent(ctx: any, event: Record<string, unknown>) {
   });
 }
 
+// A player counts as "active" until this long after their last heartbeat (or
+// their join time, if they never sent one). The cron reaper uses the same
+// window to decide a membership has gone stale.
+export const PRESENCE_TIMEOUT_MS = 15 * 60 * 1000;
+
+// Mark an in-progress lobby/game as abandoned once everyone has left. We keep
+// the records (rather than deleting them) so abandoned games stay distinct from
+// games that reached a natural finish.
+async function abandonLobby(ctx: any, lobby: any) {
+  const now = Date.now();
+
+  const game = lobby.currentGameId
+    ? await ctx.db.get(lobby.currentGameId)
+    : null;
+
+  if (game && game.status === "in_progress") {
+    await ctx.db.patch(game._id, {
+      status: "abandoned",
+      completedAt: now,
+      updatedAt: now,
+    });
+
+    if (game.currentRoundId) {
+      const round = await ctx.db.get(game.currentRoundId);
+      if (round && (round.status === "setup" || round.status === "active")) {
+        await ctx.db.patch(round._id, { status: "failed", completedAt: now });
+      }
+    }
+  }
+
+  await ctx.db.patch(lobby._id, { status: "abandoned", updatedAt: now });
+
+  await recordEvent(ctx, {
+    lobbyId: lobby._id,
+    gameId: game?._id,
+    type: "lobby.abandoned",
+    payload: {},
+  });
+}
+
+// Shared cleanup run whenever a player leaves or is reaped. Handles deleting
+// empty open lobbies, abandoning empty in-progress games, and transferring the
+// host crown to the next remaining player.
+async function reconcileLobbyAfterDeparture(ctx: any, lobbyId: string) {
+  const lobby = await ctx.db.get(lobbyId);
+  if (!lobby) {
+    return;
+  }
+
+  const remaining = await ctx.db
+    .query("lobbyPlayers")
+    .withIndex("by_lobby", (q: any) => q.eq("lobbyId", lobbyId))
+    .collect();
+
+  if (remaining.length === 0) {
+    if (lobby.status === "in_progress") {
+      await abandonLobby(ctx, lobby);
+    } else if (lobby.status !== "abandoned") {
+      // Open or completed lobbies hold nothing worth keeping once empty.
+      await ctx.db.delete(lobby._id);
+    }
+    return;
+  }
+
+  const hostStillPresent = remaining.some(
+    (membership: any) => membership.playerId === lobby.hostPlayerId,
+  );
+
+  if (!hostStillPresent) {
+    const nextHost = [...remaining].sort((a, b) => a.joinedAt - b.joinedAt)[0];
+    await ctx.db.patch(nextHost._id, { isHost: true });
+    await ctx.db.patch(lobby._id, {
+      hostPlayerId: nextHost.playerId,
+      updatedAt: Date.now(),
+    });
+    await recordEvent(ctx, {
+      lobbyId: lobby._id,
+      playerId: nextHost.playerId,
+      type: "lobby.host_transferred",
+      payload: {},
+    });
+  }
+}
+
 export const listOpen = queryGeneric({
   args: {},
   handler: async (ctx) => {
@@ -245,6 +333,7 @@ export const create = mutationGeneric({
       isHost: true,
       isReady: false,
       joinedAt: now,
+      lastSeenAt: now,
     });
 
     await recordEvent(ctx, {
@@ -295,14 +384,18 @@ export const join = mutationGeneric({
       )
       .unique();
 
+    const now = Date.now();
     if (!existingMembership) {
       await ctx.db.insert("lobbyPlayers", {
         lobbyId: lobby._id,
         playerId,
         isHost: false,
         isReady: false,
-        joinedAt: Date.now(),
+        joinedAt: now,
+        lastSeenAt: now,
       });
+    } else {
+      await ctx.db.patch(existingMembership._id, { lastSeenAt: now });
     }
 
     await recordEvent(ctx, {
@@ -345,28 +438,97 @@ export const leave = mutationGeneric({
 
     await ctx.db.delete(membership._id);
 
-    const remaining = await ctx.db
-      .query("lobbyPlayers")
-      .withIndex("by_lobby", (q) => q.eq("lobbyId", args.lobbyId))
-      .collect();
-
-    if (remaining.length === 0 && lobby.status === "open") {
-      await ctx.db.delete(lobby._id);
-    } else if (membership.isHost && remaining.length > 0) {
-      const nextHost = remaining.sort((a, b) => a.joinedAt - b.joinedAt)[0];
-      await ctx.db.patch(nextHost._id, { isHost: true });
-      await ctx.db.patch(lobby._id, {
-        hostPlayerId: nextHost.playerId,
-        updatedAt: Date.now(),
-      });
-    }
-
     await recordEvent(ctx, {
       lobbyId: args.lobbyId,
       playerId: player._id,
       type: "lobby.left",
       payload: {},
     });
+
+    await reconcileLobbyAfterDeparture(ctx, args.lobbyId);
+  },
+});
+
+export const heartbeat = mutationGeneric({
+  args: {
+    lobbyId: v.id("lobbies"),
+    guestId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_guestId", (q) => q.eq("guestId", args.guestId))
+      .unique();
+
+    if (!player) {
+      return;
+    }
+
+    const membership = await ctx.db
+      .query("lobbyPlayers")
+      .withIndex("by_lobby_player", (q) =>
+        (q as any).eq("lobbyId", args.lobbyId).eq("playerId", player._id),
+      )
+      .unique();
+
+    if (!membership) {
+      return;
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(membership._id, { lastSeenAt: now });
+    await ctx.db.patch(player._id, { lastSeenAt: now });
+  },
+});
+
+// Cron-driven backstop: remove memberships whose heartbeat has gone stale, then
+// reconcile each affected lobby (delete empty open lobbies, abandon empty
+// in-progress games, transfer host). This is what catches players who close
+// the tab or disconnect without calling `leave`.
+export const reapStaleMembers = internalMutationGeneric({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const cutoff = now - PRESENCE_TIMEOUT_MS;
+
+    const memberships = await ctx.db.query("lobbyPlayers").collect();
+    const affectedLobbyIds = new Set<string>();
+    let reaped = 0;
+
+    for (const membership of memberships) {
+      const lastActive = membership.lastSeenAt ?? membership.joinedAt;
+      if (lastActive < cutoff) {
+        await ctx.db.delete(membership._id);
+        affectedLobbyIds.add(String(membership.lobbyId));
+        reaped += 1;
+      }
+    }
+
+    // Also catch lobbies that are already empty but still marked open or
+    // in-progress (e.g. orphaned by older leave logic that never cleaned up
+    // in-progress games). reconcile is a no-op when players remain.
+    const liveLobbies = await Promise.all([
+      ctx.db
+        .query("lobbies")
+        .withIndex("by_status_visibility", (q: any) => q.eq("status", "open"))
+        .collect(),
+      ctx.db
+        .query("lobbies")
+        .withIndex("by_status_visibility", (q: any) =>
+          q.eq("status", "in_progress"),
+        )
+        .collect(),
+    ]).then((groups) => groups.flat());
+
+    for (const lobby of liveLobbies) {
+      affectedLobbyIds.add(String(lobby._id));
+    }
+
+    for (const lobbyId of affectedLobbyIds) {
+      await reconcileLobbyAfterDeparture(ctx, lobbyId as any);
+    }
+
+    return { reaped, lobbiesReconciled: affectedLobbyIds.size };
   },
 });
 
