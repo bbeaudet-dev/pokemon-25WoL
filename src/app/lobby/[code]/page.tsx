@@ -1,7 +1,15 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Check, Clipboard, Crown, Play, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  Clipboard,
+  Crown,
+  Play,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,7 +34,27 @@ export default function LobbyPage() {
   );
   const joinLobby = useMutation(convexApi.lobbies.join);
   const leaveLobby = useMutation(convexApi.lobbies.leave);
-  const setReady = useMutation(convexApi.lobbies.setReady);
+  const setReady = useMutation(convexApi.lobbies.setReady).withOptimisticUpdate(
+    (localStore, args) => {
+      const current = localStore.getQuery(convexApi.lobbies.getByCode, { code });
+      if (!current) {
+        return;
+      }
+
+      localStore.setQuery(
+        convexApi.lobbies.getByCode,
+        { code },
+        {
+          ...current,
+          players: current.players.map((player) =>
+            player.guestId === args.guestId
+              ? { ...player, isReady: args.isReady }
+              : player,
+          ),
+        },
+      );
+    },
+  );
   const updateDisplayNameMutation = useMutation(
     convexApi.lobbies.updateDisplayName,
   );
@@ -241,10 +269,10 @@ export default function LobbyPage() {
             {currentPlayer ? (
               <div className={`grid gap-3 ${isHost ? "sm:grid-cols-2" : ""}`}>
                 <button
-                  className={`rounded-2xl px-5 py-4 font-black text-black transition ${
+                  className={`flex items-center justify-center gap-2 rounded-2xl px-5 py-4 font-black transition ${
                     currentPlayer.isReady
-                      ? "bg-orange-500 hover:bg-orange-400"
-                      : "ready-up-pulse bg-orange-400 hover:bg-yellow-400"
+                      ? "border-2 border-green-400 bg-green-400/15 text-green-200 hover:bg-green-400/25"
+                      : "ready-up-pulse text-black hover:bg-yellow-400"
                   }`}
                   onClick={() =>
                     runAction(() =>
@@ -256,7 +284,14 @@ export default function LobbyPage() {
                     )
                   }
                 >
-                  {currentPlayer.isReady ? "Unready" : "Ready Up"}
+                  {currentPlayer.isReady ? (
+                    <>
+                      <CheckCircle2 className="h-5 w-5" />
+                      Ready
+                    </>
+                  ) : (
+                    "Ready Up"
+                  )}
                 </button>
                 {isHost ? (
                   <button
