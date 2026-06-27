@@ -27,6 +27,7 @@ const lobbyStatus = v.union(
   v.literal("open"),
   v.literal("in_progress"),
   v.literal("complete"),
+  v.literal("abandoned"),
 );
 
 const gameSettings = v.object({
@@ -118,6 +119,8 @@ export default defineSchema({
     isHost: v.boolean(),
     isReady: v.boolean(),
     joinedAt: v.number(),
+    // Heartbeat timestamp for closed tab, lost connection, etc.
+    lastSeenAt: v.optional(v.number()),
   })
     .index("by_lobby", ["lobbyId"])
     .index("by_lobby_player", ["lobbyId", "playerId"])

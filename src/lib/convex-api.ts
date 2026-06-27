@@ -7,7 +7,7 @@ export type LobbyDetails = {
   id: Id<"lobbies">;
   code: string;
   visibility: "public" | "private";
-  status: "open" | "in_progress" | "complete";
+  status: "open" | "in_progress" | "complete" | "abandoned";
   settings: GameSettings;
   maxPlayers: number;
   currentGameId?: Id<"games">;
@@ -30,7 +30,7 @@ export type GameRoom = {
     id: Id<"lobbies">;
     code: string;
     visibility: "public" | "private";
-    status: "open" | "in_progress" | "complete";
+    status: "open" | "in_progress" | "complete" | "abandoned";
     settings: GameSettings;
     maxPlayers: number;
     hostPlayerId: Id<"players">;
@@ -38,7 +38,7 @@ export type GameRoom = {
   players: LobbyDetails["players"];
   game: null | {
     id: Id<"games">;
-    status: "open" | "in_progress" | "complete";
+    status: "open" | "in_progress" | "complete" | "abandoned";
     settings: GameSettings;
     scores: Array<{
       playerId: Id<"players">;
