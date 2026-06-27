@@ -34,6 +34,7 @@ export default function LobbyPage() {
   );
   const joinLobby = useMutation(convexApi.lobbies.join);
   const leaveLobby = useMutation(convexApi.lobbies.leave);
+  const heartbeat = useMutation(convexApi.lobbies.heartbeat);
   const setReady = useMutation(convexApi.lobbies.setReady).withOptimisticUpdate(
     (localStore, args) => {
       const current = localStore.getQuery(convexApi.lobbies.getByCode, { code });
@@ -115,6 +116,32 @@ export default function LobbyPage() {
     isLeaving,
   ]);
 
+  const lobbyId = lobby?.id;
+  const currentPlayerId = currentPlayer?.id;
+  useEffect(() => {
+    if (!lobbyId || !currentPlayerId || !identity.guestId) {
+      return;
+    }
+
+    const ping = () => {
+      void heartbeat({ lobbyId, guestId: identity.guestId }).catch(() => {});
+    };
+
+    ping();
+    const interval = window.setInterval(ping, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        ping();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [lobbyId, currentPlayerId, identity.guestId, heartbeat]);
+
   useEffect(() => {
     const nextDisplayName = currentPlayer?.displayName ?? identity.displayName;
 
@@ -190,6 +217,22 @@ export default function LobbyPage() {
       <Shell>
         <div className="rounded-4xl border border-white/10 bg-white/10 p-8">
           <h1 className="text-3xl font-black">Lobby not found</h1>
+          <Link className="mt-5 inline-block text-yellow-300" href="/">
+            Back to lobby browser
+          </Link>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (lobby.status === "abandoned") {
+    return (
+      <Shell>
+        <div className="rounded-4xl border border-white/10 bg-white/10 p-8">
+          <h1 className="text-3xl font-black">This lobby has closed</h1>
+          <p className="mt-2 text-slate-300">
+            Everyone left, so this game was retired.
+          </p>
           <Link className="mt-5 inline-block text-yellow-300" href="/">
             Back to lobby browser
           </Link>
