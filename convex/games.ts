@@ -5,7 +5,6 @@ import {
   calculateHintGiverScore,
   getPreviousGuessCountForHint,
   getRerollWordCost,
-  hintViolatesTargetWords,
   isGuessCorrect,
   makeGameSettings,
   normalizeWord,
@@ -785,10 +784,6 @@ export const submitHintText = mutationGeneric({
 
       if (!normalizedText) {
         continue;
-      }
-
-      if (hintViolatesTargetWords(text, round.targetWords)) {
-        throw new Error("Hint words cannot match a target word or its tokens.");
       }
 
       const existing = hintWords.find(
