@@ -20,6 +20,10 @@ export default function HomePage() {
   const lobbyData = useQuery(convexApi.lobbies.listOpen, {});
   const lobbies = lobbyData?.joinable;
   const lobbyStats = lobbyData?.stats;
+  const rejoinable = useQuery(
+    convexApi.lobbies.listRejoinable,
+    identity.guestId ? { guestId: identity.guestId } : "skip",
+  );
   const createLobby = useMutation(convexApi.lobbies.create);
   const joinLobby = useMutation(convexApi.lobbies.join);
   const [joinCode, setJoinCode] = useState("");
@@ -182,6 +186,25 @@ export default function HomePage() {
               <span className="text-center">Action</span>
             </div>
             <div className="divide-y divide-white/10">
+              {rejoinable?.map((lobby) => (
+                <div
+                  key={lobby.id}
+                  className="grid grid-cols-[minmax(5rem,0.8fr)_minmax(8rem,1.2fr)_6rem_8.5rem] items-center gap-3 bg-green-400/10 px-4 py-3"
+                >
+                  <span className="capitalize">{lobby.mode}</span>
+                  <span>{lobby.hostName}</span>
+                  <span className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-yellow-300" />
+                    {lobby.playerCount}/{lobby.maxPlayers}
+                  </span>
+                  <button
+                    className="w-full rounded-full bg-green-300 px-4 py-2 text-sm font-black text-black transition hover:bg-green-200"
+                    onClick={() => router.push(`/lobby/${lobby.code}`)}
+                  >
+                    Rejoin
+                  </button>
+                </div>
+              ))}
               {lobbyData === undefined ? (
                 <p className="px-4 py-6 text-slate-300">Loading lobbies...</p>
               ) : lobbies?.length === 0 ? (

@@ -36,6 +36,7 @@ export default function LobbyPage() {
       : "skip",
   );
   const joinLobby = useMutation(convexApi.lobbies.join);
+  const rejoinLobby = useMutation(convexApi.lobbies.rejoin);
   const leaveLobby = useMutation(convexApi.lobbies.leave);
   const heartbeat = useMutation(convexApi.lobbies.heartbeat);
   const setReady = useMutation(convexApi.lobbies.setReady).withOptimisticUpdate(
@@ -72,6 +73,7 @@ export default function LobbyPage() {
     identity.displayName,
   );
   const hasAttemptedAutoJoin = useRef(false);
+  const hasAttemptedRejoin = useRef(false);
 
   const currentPlayer = useMemo(
     () => lobby?.players.find((player) => player.guestId === identity.guestId),
@@ -117,6 +119,50 @@ export default function LobbyPage() {
     joinLobby,
     lobby,
     isLeaving,
+  ]);
+
+  // Seamless rejoin: if the lobby is mid-game and we're a known participant who
+  // lost our membership (left, closed tab, or got reaped), quietly re-enter.
+  const callerIsParticipant = Boolean(room?.game?.callerIsParticipant);
+  useEffect(() => {
+    if (
+      !lobby ||
+      currentPlayer ||
+      !isReady ||
+      isJoining ||
+      isLeaving ||
+      hasAttemptedRejoin.current ||
+      lobby.status !== "in_progress" ||
+      !callerIsParticipant
+    ) {
+      return;
+    }
+
+    hasAttemptedRejoin.current = true;
+    queueMicrotask(() => {
+      setIsJoining(true);
+      rejoinLobby({
+        code,
+        guestId: identity.guestId,
+        displayName: identity.displayName,
+      })
+        .catch((err) =>
+          setError(
+            err instanceof Error ? err.message : "Unable to rejoin game.",
+          ),
+        )
+        .finally(() => setIsJoining(false));
+    });
+  }, [
+    callerIsParticipant,
+    code,
+    currentPlayer,
+    identity,
+    isJoining,
+    isLeaving,
+    isReady,
+    lobby,
+    rejoinLobby,
   ]);
 
   const lobbyId = lobby?.id;
