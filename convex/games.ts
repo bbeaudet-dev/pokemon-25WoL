@@ -65,7 +65,37 @@ function toTargetWord(word: any) {
   };
 }
 
-async function selectTargetWords(ctx: any, settings: any) {
+// A content doc -> the stored `contentWord` shape (no solve fields). Used for a
+// player's persisted manual selections.
+function toContentWord(word: any) {
+  return {
+    contentId: word._id,
+    label: word.label,
+    normalizedLabel: word.normalizedLabel,
+    category: word.category,
+    imageUrl: word.imageUrl,
+    source: word.source,
+    sourceId: word.sourceId,
+    sourceUrl: word.sourceUrl,
+  };
+}
+
+// A stored `contentWord` (from manualSelections) -> a fresh round `targetWord`.
+function toTargetWordFromContent(word: any) {
+  return {
+    contentId: word.contentId,
+    label: word.label,
+    normalizedLabel: word.normalizedLabel,
+    category: word.category,
+    imageUrl: word.imageUrl,
+    source: word.source,
+    sourceId: word.sourceId,
+    sourceUrl: word.sourceUrl,
+    solvedByPlayerIds: [],
+  };
+}
+
+async function fetchCategoryContent(ctx: any, settings: any) {
   const contentByCategory = await Promise.all(
     settings.categories.map((category: string) =>
       ctx.db
@@ -74,7 +104,11 @@ async function selectTargetWords(ctx: any, settings: any) {
         .collect(),
     ),
   );
-  const content = contentByCategory.flat();
+  return contentByCategory.flat();
+}
+
+async function selectTargetWords(ctx: any, settings: any) {
+  const content = await fetchCategoryContent(ctx, settings);
 
   if (content.length < settings.targetWordsPerRound) {
     throw new Error(
@@ -95,6 +129,51 @@ async function selectTargetWords(ctx: any, settings: any) {
   }
 
   return targetWords;
+}
+
+// Random suggestions in the stored `contentWord` shape, used to pre-fill each
+// player's slots at the start of a manual-selection cycle.
+async function selectContentWords(ctx: any, settings: any) {
+  const content = await fetchCategoryContent(ctx, settings);
+
+  if (content.length < settings.targetWordsPerRound) {
+    throw new Error(
+      "Not enough content has been seeded for these game settings.",
+    );
+  }
+
+  const words = selectTargetCandidates(
+    content,
+    settings.targetWordsPerRound,
+    Math.random,
+  ).map(toContentWord);
+
+  if (words.length < settings.targetWordsPerRound) {
+    throw new Error(
+      "Not enough content has been seeded for these category limits.",
+    );
+  }
+
+  return words;
+}
+
+// One prefilled, unlocked manualSelections entry per current lobby player.
+async function initManualSelections(ctx: any, settings: any, players: any[]) {
+  const now = Date.now();
+  return Promise.all(
+    players.map(async (player: any) => ({
+      playerId: player.id,
+      targets: await selectContentWords(ctx, settings),
+      lockedIn: false,
+      updatedAt: now,
+    })),
+  );
+}
+
+// How many rounds make up one full hintmaster cycle (every player once).
+function getCycleSize(game: any) {
+  const turns = game.settings.hintGiverTurnsPerPlayer || 1;
+  return Math.max(1, Math.round(game.roundOrder.length / turns));
 }
 
 async function selectReplacementTarget(
@@ -142,18 +221,34 @@ async function selectReplacementTarget(
 
 async function createRound(ctx: any, game: any, hintGiverPlayerId: string) {
   const now = Date.now();
-  const targetWords = await selectTargetWords(ctx, game.settings);
 
-  // Random rounds skip the setup step entirely now that rerolls happen mid-round.
-  // Manual rounds stay in setup so the hintmaster can pick their targets first.
-  const status =
-    game.settings.targetSelection === "manual" ? "setup" : "active";
+  // Manual games pull the hintmaster's pre-chosen targets for this cycle. Fall
+  // back to random if a selection is somehow missing (e.g. a ghost turn left by
+  // a departed player). Random games always generate fresh targets.
+  let targetWords;
+  if (game.settings.targetSelection === "manual") {
+    const selection = (game.manualSelections ?? []).find(
+      (entry: any) => String(entry.playerId) === String(hintGiverPlayerId),
+    );
+    if (
+      selection &&
+      selection.targets.length >= game.settings.targetWordsPerRound
+    ) {
+      targetWords = selection.targets
+        .slice(0, game.settings.targetWordsPerRound)
+        .map(toTargetWordFromContent);
+    } else {
+      targetWords = await selectTargetWords(ctx, game.settings);
+    }
+  } else {
+    targetWords = await selectTargetWords(ctx, game.settings);
+  }
 
   const roundId = await ctx.db.insert("rounds", {
     gameId: game._id,
     lobbyId: game.lobbyId,
     hintGiverPlayerId,
-    status,
+    status: "active",
     targetWords,
     currentTargetIndex: 0,
     hintWords: [],
@@ -179,12 +274,38 @@ async function createRound(ctx: any, game: any, hintGiverPlayerId: string) {
   return roundId;
 }
 
+// When every player in the current manual-selection cycle has locked in, flip
+// the game to "playing" and start the cycle's first round from stored picks.
+// Exported so the lobby-departure reconciler can also trigger a start when a
+// straggler leaves. Returns true if a cycle was started.
+export async function beginManualCycleIfReady(ctx: any, game: any) {
+  if (!game || game.phase !== "manual_selection") {
+    return false;
+  }
+
+  const selections = game.manualSelections ?? [];
+  if (selections.length === 0 || !selections.every((s: any) => s.lockedIn)) {
+    return false;
+  }
+
+  await ctx.db.patch(game._id, { phase: "playing", updatedAt: Date.now() });
+
+  const refreshed = await ctx.db.get(game._id);
+  await createRound(
+    ctx,
+    refreshed,
+    refreshed.roundOrder[refreshed.currentRoundIndex ?? 0],
+  );
+
+  return true;
+}
+
 function toScoreMap(scores: any[]) {
   return new Map(scores.map((score) => [score.playerId, { ...score }]));
 }
 
 export const getRoom = queryGeneric({
-  args: { lobbyId: v.id("lobbies") },
+  args: { lobbyId: v.id("lobbies"), guestId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const lobby = await ctx.db.get(args.lobbyId);
     if (!lobby) {
@@ -195,6 +316,27 @@ export const getRoom = queryGeneric({
     const game = lobby.currentGameId
       ? await ctx.db.get(lobby.currentGameId)
       : null;
+
+    // Lock progress is public (names + locked flag); each player's chosen words
+    // are secret, so we only expose the caller's own selection.
+    const manualLockProgress = (game?.manualSelections ?? []).map(
+      (entry: any) => ({ playerId: entry.playerId, lockedIn: entry.lockedIn }),
+    );
+    let manualSelection: {
+      targets: any[];
+      lockedIn: boolean;
+    } | null = null;
+    if (game && args.guestId) {
+      const caller = await getPlayerByGuestId(ctx, args.guestId);
+      const entry = caller
+        ? (game.manualSelections ?? []).find(
+            (s: any) => String(s.playerId) === String(caller._id),
+          )
+        : null;
+      if (entry) {
+        manualSelection = { targets: entry.targets, lockedIn: entry.lockedIn };
+      }
+    }
     const round = game?.currentRoundId
       ? await ctx.db.get(game.currentRoundId)
       : null;
@@ -220,11 +362,14 @@ export const getRoom = queryGeneric({
         ? {
             id: game._id,
             status: game.status,
+            phase: game.phase,
             settings: game.settings,
             scores: game.scores,
             roundOrder: game.roundOrder,
             currentRoundIndex: game.currentRoundIndex ?? 0,
             completedAt: game.completedAt,
+            manualSelection,
+            manualLockProgress,
           }
         : null,
       round: round
@@ -275,11 +420,19 @@ export const start = mutationGeneric({
       { length: settings.hintGiverTurnsPerPlayer },
       () => baseOrder,
     ).flat();
+    const isManual = settings.targetSelection === "manual";
+
+    // Prefill before inserting the game so a "not enough content" error aborts
+    // without leaving a half-created game record behind.
+    const manualSelections = isManual
+      ? await initManualSelections(ctx, settings, players)
+      : undefined;
 
     const gameId = await ctx.db.insert("games", {
       lobbyId: lobby._id,
       settings,
       status: "in_progress",
+      phase: isManual ? "manual_selection" : "playing",
       roundOrder,
       currentRoundIndex: 0,
       scores: players.map((lobbyPlayer) => ({
@@ -287,6 +440,7 @@ export const start = mutationGeneric({
         totalScore: 0,
         roundScore: 0,
       })),
+      manualSelections,
       createdAt: now,
       updatedAt: now,
     });
@@ -297,8 +451,12 @@ export const start = mutationGeneric({
       updatedAt: now,
     });
 
-    const game = await ctx.db.get(gameId);
-    await createRound(ctx, game, roundOrder[0]);
+    // Manual games wait in the selection phase until everyone locks in; random
+    // games jump straight into round 1.
+    if (!isManual) {
+      const game = await ctx.db.get(gameId);
+      await createRound(ctx, game, roundOrder[0]);
+    }
     await recordEvent(ctx, {
       lobbyId: lobby._id,
       gameId,
@@ -396,71 +554,196 @@ export const rerollCurrentTarget = mutationGeneric({
   },
 });
 
-export const setManualTarget = mutationGeneric({
+export const setPlayerTarget = mutationGeneric({
   args: {
-    roundId: v.id("rounds"),
+    gameId: v.id("games"),
     guestId: v.string(),
     targetIndex: v.number(),
     contentId: v.id("content"),
   },
   handler: async (ctx, args) => {
-    const round = await ctx.db.get(args.roundId);
+    const game = await ctx.db.get(args.gameId);
     const player = await getPlayerByGuestId(ctx, args.guestId);
     const content = await ctx.db.get(args.contentId);
 
-    if (!round || !player || !content || round.hintGiverPlayerId !== player._id) {
+    if (!game || !player || !content) {
       throw new Error("Unable to set target.");
     }
 
-    if (round.status !== "setup") {
-      throw new Error("Targets have already been confirmed.");
+    if (game.phase !== "manual_selection") {
+      throw new Error("Target selection is closed.");
+    }
+
+    const selections = game.manualSelections ?? [];
+    const index = selections.findIndex(
+      (entry: any) => String(entry.playerId) === String(player._id),
+    );
+    if (index === -1) {
+      throw new Error("You are not selecting targets in this game.");
+    }
+
+    const entry = selections[index];
+    if (entry.lockedIn) {
+      throw new Error("Unlock your targets before changing them.");
     }
 
     if (
       args.targetIndex < 0 ||
-      args.targetIndex >= round.targetWords.length ||
+      args.targetIndex >= game.settings.targetWordsPerRound ||
       !Number.isInteger(args.targetIndex)
     ) {
       throw new Error("Target slot not found.");
     }
 
-    const targetWords = [...round.targetWords];
-    targetWords[args.targetIndex] = toTargetWord(content);
+    if (!game.settings.categories.includes(content.category)) {
+      throw new Error("That word is not in the enabled categories.");
+    }
 
-    await ctx.db.patch(round._id, { targetWords });
+    if (
+      entry.targets.some(
+        (target: any, i: number) =>
+          i !== args.targetIndex &&
+          String(target.contentId) === String(content._id),
+      )
+    ) {
+      throw new Error("You already picked that word.");
+    }
+
+    const targets = [...entry.targets];
+    targets[args.targetIndex] = toContentWord(content);
+    const updated = [...selections];
+    updated[index] = { ...entry, targets, updatedAt: Date.now() };
+
+    await ctx.db.patch(game._id, {
+      manualSelections: updated,
+      updatedAt: Date.now(),
+    });
     await recordEvent(ctx, {
-      lobbyId: round.lobbyId,
-      gameId: round.gameId,
-      roundId: round._id,
+      lobbyId: game.lobbyId,
+      gameId: game._id,
       playerId: player._id,
-      type: "round.target_set",
+      type: "manual.target_set",
       payload: { targetIndex: args.targetIndex, label: content.label },
     });
   },
 });
 
-export const confirmTargets = mutationGeneric({
+export const setPlayerLock = mutationGeneric({
   args: {
-    roundId: v.id("rounds"),
+    gameId: v.id("games"),
+    guestId: v.string(),
+    lockedIn: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get(args.gameId);
+    const player = await getPlayerByGuestId(ctx, args.guestId);
+
+    if (!game || !player) {
+      throw new Error("Unable to update lock state.");
+    }
+
+    if (game.phase !== "manual_selection") {
+      throw new Error("Target selection is closed.");
+    }
+
+    const selections = game.manualSelections ?? [];
+    const index = selections.findIndex(
+      (entry: any) => String(entry.playerId) === String(player._id),
+    );
+    if (index === -1) {
+      throw new Error("You are not selecting targets in this game.");
+    }
+
+    const entry = selections[index];
+    if (args.lockedIn) {
+      const targets = entry.targets.slice(0, game.settings.targetWordsPerRound);
+      const isFull =
+        targets.length >= game.settings.targetWordsPerRound &&
+        targets.every((target: any) => Boolean(target?.contentId));
+      if (!isFull) {
+        throw new Error("Pick all of your targets before locking in.");
+      }
+    }
+
+    const updated = [...selections];
+    updated[index] = { ...entry, lockedIn: args.lockedIn, updatedAt: Date.now() };
+
+    await ctx.db.patch(game._id, {
+      manualSelections: updated,
+      updatedAt: Date.now(),
+    });
+    await recordEvent(ctx, {
+      lobbyId: game.lobbyId,
+      gameId: game._id,
+      playerId: player._id,
+      type: args.lockedIn ? "manual.locked" : "manual.unlocked",
+      payload: {},
+    });
+
+    // Last player to lock auto-starts the cycle.
+    const refreshed = await ctx.db.get(game._id);
+    await beginManualCycleIfReady(ctx, refreshed);
+  },
+});
+
+export const skipTurn = mutationGeneric({
+  args: {
+    lobbyId: v.id("lobbies"),
     guestId: v.string(),
   },
   handler: async (ctx, args) => {
-    const round = await ctx.db.get(args.roundId);
+    const lobby = await ctx.db.get(args.lobbyId);
     const player = await getPlayerByGuestId(ctx, args.guestId);
 
-    if (!round || !player || round.hintGiverPlayerId !== player._id) {
-      throw new Error("Unable to confirm targets.");
+    if (!lobby || !player || lobby.hostPlayerId !== player._id) {
+      throw new Error("Only the host can skip a turn.");
     }
 
-    await ctx.db.patch(round._id, { status: "active" });
+    const game = lobby.currentGameId
+      ? await ctx.db.get(lobby.currentGameId)
+      : null;
+    const round = game?.currentRoundId
+      ? await ctx.db.get(game.currentRoundId)
+      : null;
+
+    if (!game || !round) {
+      throw new Error("There is no active turn to skip.");
+    }
+
+    if (round.status !== "active") {
+      throw new Error("This turn cannot be skipped right now.");
+    }
+
+    // Skipping forfeits the hintmaster's round points (mirrors endTurn), but is
+    // host-initiated so it works even when the hintmaster has left or is idle.
+    const scores = toScoreMap(game.scores);
+    const hintGiverScoreEntry = scores.get(round.hintGiverPlayerId) ?? {
+      playerId: round.hintGiverPlayerId,
+      totalScore: 0,
+      roundScore: 0,
+    };
+    hintGiverScoreEntry.roundScore = 0;
+    scores.set(round.hintGiverPlayerId, hintGiverScoreEntry);
+
+    await ctx.db.patch(round._id, {
+      status: "failed",
+      completedAt: Date.now(),
+    });
+    await ctx.db.patch(game._id, {
+      scores: Array.from(scores.values()),
+      updatedAt: Date.now(),
+    });
+
     await recordEvent(ctx, {
       lobbyId: round.lobbyId,
       gameId: round.gameId,
       roundId: round._id,
       playerId: player._id,
-      type: "round.targets_confirmed",
-      payload: {},
+      type: "round.skipped",
+      payload: { skippedHintGiver: round.hintGiverPlayerId },
     });
+
+    return { skipped: true };
   },
 });
 
@@ -479,7 +762,7 @@ export const submitHintText = mutationGeneric({
     }
 
     if (round.status !== "active") {
-      throw new Error("Confirm targets before giving hints.");
+      throw new Error("This turn is not active right now.");
     }
 
     const rawWords = args.text
@@ -827,7 +1110,27 @@ export const nextRound = mutationGeneric({
     });
 
     const refreshedGame = await ctx.db.get(game._id);
-    await createRound(ctx, refreshedGame, game.roundOrder[nextIndex]);
+
+    // Manual games re-open a fresh simultaneous selection phase at the start of
+    // each new hintmaster cycle instead of creating the next round directly.
+    const isManual = game.settings.targetSelection === "manual";
+    const startsNewCycle = isManual && nextIndex % getCycleSize(game) === 0;
+
+    if (startsNewCycle) {
+      const cyclePlayers = await getLobbyPlayers(ctx, game.lobbyId);
+      const manualSelections = await initManualSelections(
+        ctx,
+        game.settings,
+        cyclePlayers,
+      );
+      await ctx.db.patch(refreshedGame._id, {
+        phase: "manual_selection",
+        manualSelections,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await createRound(ctx, refreshedGame, game.roundOrder[nextIndex]);
+    }
 
     return { gameOver: false };
   },

@@ -89,6 +89,15 @@ const scoreEntry = v.object({
   roundScore: v.number(),
 });
 
+// One player's chosen targets for the CURRENT manual-selection cycle. Reuses the
+// contentWord shape (no solve fields); solve state only lives on the live round.
+const manualSelection = v.object({
+  playerId: v.id("players"),
+  targets: v.array(contentWord),
+  lockedIn: v.boolean(),
+  updatedAt: v.number(),
+});
+
 export default defineSchema({
   players: defineTable({
     guestId: v.string(),
@@ -130,10 +139,16 @@ export default defineSchema({
     lobbyId: v.id("lobbies"),
     settings: gameSettings,
     status: lobbyStatus,
+    // "manual_selection": players are simultaneously picking their targets for
+    // the current hintmaster cycle; "playing": rounds are running normally.
+    // Random games are always "playing".
+    phase: v.union(v.literal("manual_selection"), v.literal("playing")),
     roundOrder: v.array(v.id("players")),
     currentRoundIndex: v.optional(v.number()),
     currentRoundId: v.optional(v.id("rounds")),
     scores: v.array(scoreEntry),
+    // Present only during a manual game's selection phase (current cycle only).
+    manualSelections: v.optional(v.array(manualSelection)),
     createdAt: v.number(),
     updatedAt: v.number(),
     completedAt: v.optional(v.number()),
@@ -144,7 +159,6 @@ export default defineSchema({
     lobbyId: v.id("lobbies"),
     hintGiverPlayerId: v.id("players"),
     status: v.union(
-      v.literal("setup"),
       v.literal("active"),
       v.literal("complete"),
       v.literal("failed"),

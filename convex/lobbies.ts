@@ -9,6 +9,7 @@ import {
   makeGameSettings,
 } from "../src/lib/game/rules";
 import { getPlayerAvatarUrl } from "../src/lib/player-avatar";
+import { beginManualCycleIfReady } from "./games";
 
 const contentCategory = v.union(
   v.literal("pokemon"),
@@ -153,7 +154,7 @@ async function abandonLobby(ctx: any, lobby: any) {
 
     if (game.currentRoundId) {
       const round = await ctx.db.get(game.currentRoundId);
-      if (round && (round.status === "setup" || round.status === "active")) {
+      if (round && round.status === "active") {
         await ctx.db.patch(round._id, { status: "failed", completedAt: now });
       }
     }
@@ -210,6 +211,29 @@ async function reconcileLobbyAfterDeparture(ctx: any, lobbyId: string) {
       type: "lobby.host_transferred",
       payload: {},
     });
+  }
+
+  // If a player leaves (or is reaped) mid-pick during a manual game, drop their
+  // selection entry so the "everyone locked in" check doesn't wait forever, and
+  // start the cycle if the remaining players were the only holdouts.
+  const game = lobby.currentGameId
+    ? await ctx.db.get(lobby.currentGameId)
+    : null;
+  if (game && game.phase === "manual_selection") {
+    const remainingIds = new Set(
+      remaining.map((membership: any) => String(membership.playerId)),
+    );
+    const prunedSelections = (game.manualSelections ?? []).filter(
+      (entry: any) => remainingIds.has(String(entry.playerId)),
+    );
+    if (prunedSelections.length !== (game.manualSelections ?? []).length) {
+      await ctx.db.patch(game._id, {
+        manualSelections: prunedSelections,
+        updatedAt: Date.now(),
+      });
+    }
+    const refreshedGame = await ctx.db.get(game._id);
+    await beginManualCycleIfReady(ctx, refreshedGame);
   }
 }
 
