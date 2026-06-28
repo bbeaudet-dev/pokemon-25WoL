@@ -15,6 +15,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameOverScreen } from "@/components/game/game-over-screen";
 import { GameRoomBoard } from "@/components/game/game-room-board";
+import { ManualSelectionScreen } from "@/components/game/manual-selection-screen";
 import { ContentWheel } from "@/components/home/content-wheel";
 import { GameSettingsPanel } from "@/components/lobby/game-settings-panel";
 import { PlayerAvatar } from "@/components/player-avatar";
@@ -30,7 +31,9 @@ export default function LobbyPage() {
   const lobby = useQuery(convexApi.lobbies.getByCode, { code });
   const room = useQuery(
     convexApi.games.getRoom,
-    lobby ? ({ lobbyId: lobby.id } as any) : "skip",
+    lobby
+      ? ({ lobbyId: lobby.id, guestId: identity.guestId } as any)
+      : "skip",
   );
   const joinLobby = useMutation(convexApi.lobbies.join);
   const leaveLobby = useMutation(convexApi.lobbies.leave);
@@ -246,6 +249,25 @@ export default function LobbyPage() {
       <GameOverScreen
         code={code}
         room={room}
+        onLeave={handleLeave}
+      />
+    );
+  }
+
+  // Manual games pause in a shared selection phase before each cycle. Check this
+  // before the round branch: room.round may still hold the just-finished round
+  // from the previous cycle.
+  if (
+    room?.lobby.status === "in_progress" &&
+    room.game?.phase === "manual_selection"
+  ) {
+    return (
+      <ManualSelectionScreen
+        code={code}
+        identity={identity}
+        room={room}
+        error={error}
+        onError={setError}
         onLeave={handleLeave}
       />
     );

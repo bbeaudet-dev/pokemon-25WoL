@@ -4,7 +4,7 @@ export type LobbyVisibility = "public" | "private";
 
 export type LobbyStatus = "open" | "in_progress" | "complete";
 
-export type RoundStatus = "setup" | "active" | "complete" | "failed";
+export type RoundStatus = "active" | "complete" | "failed";
 
 export type ContentCategory =
   | "pokemon"

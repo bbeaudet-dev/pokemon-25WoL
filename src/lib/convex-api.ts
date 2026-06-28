@@ -39,6 +39,7 @@ export type GameRoom = {
   game: null | {
     id: Id<"games">;
     status: "open" | "in_progress" | "complete" | "abandoned";
+    phase: "manual_selection" | "playing";
     settings: GameSettings;
     scores: Array<{
       playerId: Id<"players">;
@@ -48,10 +49,21 @@ export type GameRoom = {
     roundOrder: Id<"players">[];
     currentRoundIndex: number;
     completedAt?: number;
+    // The caller's own picks. Only returned to that player (other players never
+    // receive these), and null unless getRoom was passed their guestId.
+    manualSelection: null | {
+      targets: Array<ContentWord & { contentId: Id<"content"> }>;
+      lockedIn: boolean;
+    };
+    // Who has locked in. Safe to show everyone (no words, just the flag).
+    manualLockProgress: Array<{
+      playerId: Id<"players">;
+      lockedIn: boolean;
+    }>;
   };
   round: null | {
     id: Id<"rounds">;
-    status: "setup" | "active" | "complete" | "failed";
+    status: "active" | "complete" | "failed";
     hintGiverPlayerId: Id<"players">;
     targetWords: Array<ContentWord & {
       contentId: Id<"content">;

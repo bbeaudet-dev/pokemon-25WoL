@@ -1,7 +1,7 @@
 type PlayerAvatarProps = {
   displayName: string;
   imageUrl?: string;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   className?: string;
 };
 
@@ -12,7 +12,11 @@ export function PlayerAvatar({
   className = "",
 }: PlayerAvatarProps) {
   const sizeClass =
-    size === "sm" ? "h-8 w-8 text-xs" : "h-10 w-10 text-base";
+    size === "sm"
+      ? "h-8 w-8 text-xs"
+      : size === "lg"
+        ? "h-20 w-20 text-3xl"
+        : "h-10 w-10 text-base";
 
   if (imageUrl) {
     return (

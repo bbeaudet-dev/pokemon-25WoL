@@ -1,9 +1,9 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, RotateCcw, Send } from "lucide-react";
+import { ArrowLeft, RotateCcw, Send, SkipForward } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { GuestIdentity } from "@/lib/guest";
 import { PlayerAvatar } from "@/components/player-avatar";
@@ -14,7 +14,6 @@ import {
   getRerollWordCost,
 } from "@/lib/game/rules";
 import { Scoreboard } from "./scoreboard";
-import { TargetConfirmModal } from "./target-confirm-modal";
 import { WordImage } from "./word-image";
 
 type GameRoomBoardProps = {
@@ -36,10 +35,15 @@ export function GameRoomBoard({
 }: GameRoomBoardProps) {
   const endTurn = useMutation(convexApi.games.endTurn);
   const nextRound = useMutation(convexApi.games.nextRound);
+  const skipTurn = useMutation(convexApi.games.skipTurn);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isEndTurnConfirmOpen, setIsEndTurnConfirmOpen] = useState(false);
   const [isEndingTurn, setIsEndingTurn] = useState(false);
+  const [isSkipConfirmOpen, setIsSkipConfirmOpen] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
   const [isLeaveGameConfirmOpen, setIsLeaveGameConfirmOpen] = useState(false);
+  // Tracks the round we're announcing with the brief turn-start overlay.
+  const [introRoundId, setIntroRoundId] = useState<string | null>(null);
   const round = room.round;
   const currentPlayer = room.players.find(
     (player) => player.guestId === identity.guestId,
@@ -60,6 +64,18 @@ export function GameRoomBoard({
     !!room.game &&
     room.game.currentRoundIndex >= room.game.roundOrder.length - 1;
 
+  // Flash a "{name} is up" intro whenever a fresh round becomes active.
+  const roundId = round?.id;
+  const roundStatus = round?.status;
+  useEffect(() => {
+    if (!roundId || roundStatus !== "active") {
+      return;
+    }
+    setIntroRoundId(roundId);
+    const timer = window.setTimeout(() => setIntroRoundId(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [roundId, roundStatus]);
+
   async function handleEndTurn() {
     if (!round) {
       return;
@@ -73,6 +89,19 @@ export function GameRoomBoard({
       onError(err instanceof Error ? err.message : "Unable to end turn.");
     } finally {
       setIsEndingTurn(false);
+    }
+  }
+
+  async function handleSkipTurn() {
+    onError(null);
+    setIsSkipping(true);
+    try {
+      await skipTurn({ lobbyId: room.lobby.id, guestId: identity.guestId });
+      setIsSkipConfirmOpen(false);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to skip turn.");
+    } finally {
+      setIsSkipping(false);
     }
   }
 
@@ -101,13 +130,15 @@ export function GameRoomBoard({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5 px-5 pb-12 pt-5">
-      {round.status === "setup" ? (
-        <TargetConfirmModal
+      {introRoundId === round.id && round.status === "active" ? (
+        <TurnIntro
+          hintmasterName={hintmasterName}
+          hintmaster={room.players.find(
+            (player) => player.id === round.hintGiverPlayerId,
+          )}
           isHintmaster={isHintmaster}
           round={round}
-          settings={room.game.settings}
-          guestId={identity.guestId}
-          onError={onError}
+          onDismiss={() => setIntroRoundId(null)}
         />
       ) : null}
       {roundEnded ? (
@@ -126,6 +157,14 @@ export function GameRoomBoard({
           isEnding={isEndingTurn}
           onCancel={() => setIsEndTurnConfirmOpen(false)}
           onConfirm={handleEndTurn}
+        />
+      ) : null}
+      {isSkipConfirmOpen ? (
+        <SkipTurnConfirmModal
+          hintmasterName={hintmasterName}
+          isSkipping={isSkipping}
+          onCancel={() => setIsSkipConfirmOpen(false)}
+          onConfirm={handleSkipTurn}
         />
       ) : null}
       {isLeaveGameConfirmOpen ? (
@@ -187,6 +226,15 @@ export function GameRoomBoard({
               onClick={() => setIsEndTurnConfirmOpen(true)}
             >
               End my turn
+            </button>
+          ) : null}
+          {isHost && !isHintmaster && round.status === "active" ? (
+            <button
+              className="flex items-center gap-2 rounded-full border border-orange-300/40 px-4 py-2 text-orange-300 transition hover:bg-orange-300 hover:text-black"
+              onClick={() => setIsSkipConfirmOpen(true)}
+            >
+              <SkipForward className="h-4 w-4" />
+              Skip turn
             </button>
           ) : null}
         </div>
@@ -270,6 +318,110 @@ function EndTurnConfirmModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function SkipTurnConfirmModal({
+  hintmasterName,
+  isSkipping,
+  onCancel,
+  onConfirm,
+}: {
+  hintmasterName: string;
+  isSkipping: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-5 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-4xl border border-white/10 bg-slate-950 p-7 shadow-2xl">
+        <p className="text-sm font-bold uppercase tracking-[0.3em] text-orange-300">
+          Skip Turn
+        </p>
+        <h2 className="mt-2 text-3xl font-black">Skip {hintmasterName}&rsquo;s turn?</h2>
+        <p className="mt-3 text-slate-300">
+          Use this if a player has left or gone idle. Their turn ends now and
+          they forfeit their hintmaster points for this round. Guessers keep what
+          they already earned.
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button
+            className="rounded-2xl bg-white/10 px-5 py-4 font-black text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isSkipping}
+            onClick={onCancel}
+          >
+            Keep Waiting
+          </button>
+          <button
+            className="rounded-2xl bg-orange-500 px-5 py-4 font-black text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isSkipping}
+            onClick={onConfirm}
+          >
+            {isSkipping ? "Skipping..." : "Skip Turn"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TurnIntro({
+  hintmasterName,
+  hintmaster,
+  isHintmaster,
+  round,
+  onDismiss,
+}: {
+  hintmasterName: string;
+  hintmaster?: GameRoom["players"][number];
+  isHintmaster: boolean;
+  round: NonNullable<GameRoom["round"]>;
+  onDismiss: () => void;
+}) {
+  return (
+    <button
+      aria-label="Dismiss"
+      className="fixed inset-0 z-50 grid cursor-pointer place-items-center bg-black/75 px-5 backdrop-blur-sm"
+      onClick={onDismiss}
+    >
+      <div className="w-full max-w-md rounded-4xl border border-white/10 bg-slate-950 p-8 text-center shadow-2xl">
+        <div className="flex justify-center">
+          <PlayerAvatar
+            displayName={hintmasterName}
+            imageUrl={hintmaster?.imageUrl}
+            size="lg"
+          />
+        </div>
+        <h2 className="mt-4 text-4xl font-black">
+          {isHintmaster ? "You're up!" : `${hintmasterName} is up`}
+        </h2>
+        <p className="mt-2 text-sm font-bold uppercase tracking-[0.3em] text-yellow-300">
+          {isHintmaster ? "Your targets" : "Give your best guesses"}
+        </p>
+
+        {isHintmaster ? (
+          <div className="mt-5 grid gap-2 text-left sm:grid-cols-2">
+            {round.targetWords.map((target, index) => (
+              <div
+                className="font-display flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-black text-black"
+                key={`${target.contentId}-${index}`}
+              >
+                <WordImage
+                  category={target.category}
+                  imageUrl={target.imageUrl}
+                  label={target.label}
+                />
+                <span className="min-w-0 flex-1 truncate">{target.label}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <p className="mt-6 text-xs font-bold uppercase tracking-widest text-slate-500">
+          Tap to continue
+        </p>
+      </div>
+    </button>
   );
 }
 
