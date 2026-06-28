@@ -15,6 +15,26 @@ each hintmaster picks, round after round.
 when a player becomes the hintmaster (current behavior), so there is no shared
 picking step.
 
+## Status
+
+- **Done:** the picker UI (tappable cards + inline search), now living in
+  `src/components/game/manual-selection-screen.tsx` (the old
+  `target-confirm-modal.tsx` per-round flow was removed).
+- **Done:** simultaneous picking. Manual games have a `games.phase`
+  (`manual_selection` | `playing`) and per-player `games.manualSelections`
+  (current cycle only). All players pick at once, lock in, and the cycle's first
+  round auto-starts when the last player locks (`beginManualCycleIfReady`).
+- **Done:** per-cycle picking. With `hintGiverTurnsPerPlayer > 1`, a fresh
+  selection phase re-opens at the start of each cycle (`nextRound` detects the
+  cycle boundary via `getCycleSize`).
+- **Done:** a brief turn-start overlay (`TurnIntro`) announces each hintmaster
+  and shows the hintmaster their own targets.
+- **Done:** a host-only "Skip turn" button (`games.skipTurn`) to clear a
+  stuck/AFK/ghost hintmaster's active round.
+- **Follow-up (not done):** auto-skipping ghost turns and auto-failing the
+  active round when the current hintmaster leaves (host handles via Skip turn
+  for now).
+
 ## Current behavior (what exists today)
 
 - Game settings carry `targetSelection: "random" | "manual"` (see
