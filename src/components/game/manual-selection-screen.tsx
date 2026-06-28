@@ -293,7 +293,9 @@ export function ManualSelectionScreen({
               </span>
             </div>
             <div className="mt-4 grid gap-2">
-              {room.players.map((player) => {
+              {room.players
+                .filter((player) => player.isPresent !== false)
+                .map((player) => {
                 const playerLocked =
                   lockedByPlayer.get(String(player.id)) ?? false;
                 return (

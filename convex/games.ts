@@ -19,6 +19,8 @@ async function getPlayerByGuestId(ctx: any, guestId: string) {
     .unique();
 }
 
+// Currently-present lobby members only (leftAt unset). This is the roster used
+// for game flow: who starts, turn order, manual pick slots, etc.
 async function getLobbyPlayers(ctx: any, lobbyId: string) {
   const memberships = await ctx.db
     .query("lobbyPlayers")
@@ -26,18 +28,20 @@ async function getLobbyPlayers(ctx: any, lobbyId: string) {
     .collect();
 
   const players = await Promise.all(
-    memberships.map(async (membership: any) => {
-      const player = await ctx.db.get(membership.playerId);
-      return {
-        id: membership.playerId,
-        guestId: player?.guestId ?? "",
-        displayName: player?.displayName ?? "Unknown Player",
-        imageUrl: player?.imageUrl,
-        isHost: membership.isHost,
-        isReady: membership.isReady,
-        joinedAt: membership.joinedAt,
-      };
-    }),
+    memberships
+      .filter((membership: any) => membership.leftAt == null)
+      .map(async (membership: any) => {
+        const player = await ctx.db.get(membership.playerId);
+        return {
+          id: membership.playerId,
+          guestId: player?.guestId ?? "",
+          displayName: player?.displayName ?? "Unknown Player",
+          imageUrl: player?.imageUrl,
+          isHost: membership.isHost,
+          isReady: membership.isReady,
+          joinedAt: membership.joinedAt,
+        };
+      }),
   );
 
   return players.sort((a, b) => a.joinedAt - b.joinedAt);
@@ -349,6 +353,35 @@ export function isGameParticipant(game: any, playerId: string) {
   );
 }
 
+// Full roster for an in-progress/finished game: every membership row, including
+// players who have left (leftAt set). Because in-game departures are
+// soft-deleted, departed players keep their scoreboard card and final standings
+// via the `isPresent` flag. Ordered by join time so cards don't reshuffle.
+async function getGameRoster(ctx: any, lobbyId: string) {
+  const memberships = await ctx.db
+    .query("lobbyPlayers")
+    .withIndex("by_lobby", (q: any) => q.eq("lobbyId", lobbyId))
+    .collect();
+
+  const players = await Promise.all(
+    memberships.map(async (membership: any) => {
+      const player = await ctx.db.get(membership.playerId);
+      return {
+        id: membership.playerId,
+        guestId: player?.guestId ?? "",
+        displayName: player?.displayName ?? "Unknown Player",
+        imageUrl: player?.imageUrl,
+        isHost: membership.isHost,
+        isReady: membership.isReady,
+        joinedAt: membership.joinedAt,
+        isPresent: membership.leftAt == null,
+      };
+    }),
+  );
+
+  return players.sort((a, b) => a.joinedAt - b.joinedAt);
+}
+
 export const getRoom = queryGeneric({
   args: { lobbyId: v.id("lobbies"), guestId: v.optional(v.string()) },
   handler: async (ctx, args) => {
@@ -357,10 +390,14 @@ export const getRoom = queryGeneric({
       return null;
     }
 
-    const players = await getLobbyPlayers(ctx, args.lobbyId);
     const game = lobby.currentGameId
       ? await ctx.db.get(lobby.currentGameId)
       : null;
+    // While a game exists, show the full roster (including players who
+    // left/disconnected) instead of only currently-present members.
+    const players = game
+      ? await getGameRoster(ctx, args.lobbyId)
+      : await getLobbyPlayers(ctx, args.lobbyId);
     const caller = args.guestId
       ? await getPlayerByGuestId(ctx, args.guestId)
       : null;
@@ -1199,7 +1236,7 @@ export const getSummary = queryGeneric({
       return null;
     }
 
-    const players = await getLobbyPlayers(ctx, args.lobbyId);
+    const players = await getGameRoster(ctx, args.lobbyId);
     const guesses = await ctx.db
       .query("guesses")
       .withIndex("by_game", (q) => q.eq("gameId", game._id))
@@ -1230,6 +1267,7 @@ export const getSummary = queryGeneric({
         imageUrl: player.imageUrl,
         totalScore: (scoreByPlayer.get(player.id) as number) ?? 0,
         correctGuesses: correctByPlayer.get(player.id) ?? 0,
+        isPresent: player.isPresent,
       }))
       .sort((a, b) => b.totalScore - a.totalScore);
 

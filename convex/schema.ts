@@ -130,6 +130,11 @@ export default defineSchema({
     joinedAt: v.number(),
     // Heartbeat timestamp for closed tab, lost connection, etc.
     lastSeenAt: v.optional(v.number()),
+    // When set, the player has left/disconnected. We soft-delete (rather than
+    // remove the row) once a game has started so departed players keep their
+    // scoreboard card and final standings, and so they can rejoin in place.
+    // Unset (null) means the player is currently present.
+    leftAt: v.optional(v.number()),
   })
     .index("by_lobby", ["lobbyId"])
     .index("by_lobby_player", ["lobbyId", "playerId"])

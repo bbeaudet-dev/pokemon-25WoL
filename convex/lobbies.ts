@@ -103,6 +103,8 @@ async function upsertGuestPlayer(
   });
 }
 
+// Currently-present members only (leftAt unset). Used everywhere presence
+// matters: lobby UI, player counts, capacity, host transfer, and game flow.
 async function getLobbyPlayers(ctx: any, lobbyId: string) {
   const memberships = await ctx.db
     .query("lobbyPlayers")
@@ -110,18 +112,20 @@ async function getLobbyPlayers(ctx: any, lobbyId: string) {
     .collect();
 
   const players = await Promise.all(
-    memberships.map(async (membership: any) => {
-      const player = await ctx.db.get(membership.playerId);
-      return {
-        id: membership.playerId,
-        guestId: player?.guestId ?? "",
-        displayName: player?.displayName ?? "Unknown Player",
-        imageUrl: player?.imageUrl,
-        isHost: membership.isHost,
-        isReady: membership.isReady,
-        joinedAt: membership.joinedAt,
-      };
-    }),
+    memberships
+      .filter((membership: any) => membership.leftAt == null)
+      .map(async (membership: any) => {
+        const player = await ctx.db.get(membership.playerId);
+        return {
+          id: membership.playerId,
+          guestId: player?.guestId ?? "",
+          displayName: player?.displayName ?? "Unknown Player",
+          imageUrl: player?.imageUrl,
+          isHost: membership.isHost,
+          isReady: membership.isReady,
+          joinedAt: membership.joinedAt,
+        };
+      }),
   );
 
   return players.sort((a, b) => a.joinedAt - b.joinedAt);
@@ -183,16 +187,22 @@ async function reconcileLobbyAfterDeparture(ctx: any, lobbyId: string) {
     return;
   }
 
-  const remaining = await ctx.db
+  const memberships = await ctx.db
     .query("lobbyPlayers")
     .withIndex("by_lobby", (q: any) => q.eq("lobbyId", lobbyId))
     .collect();
+  const remaining = memberships.filter(
+    (membership: any) => membership.leftAt == null,
+  );
 
   if (remaining.length === 0) {
     if (lobby.status === "in_progress") {
+      // Keep the records but mark them abandoned (preserves history + standings).
       await abandonLobby(ctx, lobby);
     } else if (lobby.status !== "abandoned") {
-      // Open or completed lobbies hold nothing worth keeping once empty.
+      // Open or completed lobbies hold nothing worth keeping once empty. Remove
+      // any lingering (soft-deleted) membership rows too so nothing is orphaned.
+      await Promise.all(memberships.map((m: any) => ctx.db.delete(m._id)));
       await ctx.db.delete(lobby._id);
     }
     return;
@@ -204,6 +214,14 @@ async function reconcileLobbyAfterDeparture(ctx: any, lobbyId: string) {
 
   if (!hostStillPresent) {
     const nextHost = [...remaining].sort((a, b) => a.joinedAt - b.joinedAt)[0];
+    // Demote the departed host's lingering (soft-deleted) row so the crown
+    // doesn't show on two cards.
+    const prevHost = memberships.find(
+      (m: any) => m.playerId === lobby.hostPlayerId,
+    );
+    if (prevHost) {
+      await ctx.db.patch(prevHost._id, { isHost: false });
+    }
     await ctx.db.patch(nextHost._id, { isHost: true });
     await ctx.db.patch(lobby._id, {
       hostPlayerId: nextHost.playerId,
@@ -329,6 +347,17 @@ export const listRejoinable = queryGeneric({
         ? await ctx.db.get(lobby.currentGameId)
         : null;
       if (!game || !isGameParticipant(game, player._id)) {
+        continue;
+      }
+
+      // Skip games the player is already present in (no rejoin prompt needed).
+      const membership = await ctx.db
+        .query("lobbyPlayers")
+        .withIndex("by_lobby_player", (q) =>
+          (q as any).eq("lobbyId", lobby._id).eq("playerId", player._id),
+        )
+        .unique();
+      if (membership && membership.leftAt == null) {
         continue;
       }
 
@@ -470,7 +499,10 @@ export const join = mutationGeneric({
         lastSeenAt: now,
       });
     } else {
-      await ctx.db.patch(existingMembership._id, { lastSeenAt: now });
+      await ctx.db.patch(existingMembership._id, {
+        lastSeenAt: now,
+        leftAt: undefined,
+      });
     }
 
     await recordEvent(ctx, {
@@ -534,8 +566,21 @@ export const rejoin = mutationGeneric({
       .unique();
 
     if (existingMembership) {
-      await ctx.db.patch(existingMembership._id, { lastSeenAt: now });
+      const wasAbsent = existingMembership.leftAt != null;
+      await ctx.db.patch(existingMembership._id, {
+        lastSeenAt: now,
+        leftAt: undefined,
+      });
+      if (wasAbsent) {
+        await recordEvent(ctx, {
+          lobbyId: lobby._id,
+          playerId,
+          type: "lobby.rejoined",
+          payload: {},
+        });
+      }
     } else {
+      // No row at all (e.g. reaped before soft-delete existed): recreate it.
       await ctx.db.insert("lobbyPlayers", {
         lobbyId: lobby._id,
         playerId,
@@ -587,7 +632,14 @@ export const leave = mutationGeneric({
       return;
     }
 
-    await ctx.db.delete(membership._id);
+    // Pre-game (open lobby, no game yet): truly remove the row. Once a game has
+    // started we soft-delete so the player keeps their card/standings and can
+    // rejoin in place.
+    if (lobby.currentGameId) {
+      await ctx.db.patch(membership._id, { leftAt: Date.now() });
+    } else {
+      await ctx.db.delete(membership._id);
+    }
 
     await recordEvent(ctx, {
       lobbyId: args.lobbyId,
@@ -644,15 +696,34 @@ export const reapStaleMembers = internalMutationGeneric({
 
     const memberships = await ctx.db.query("lobbyPlayers").collect();
     const affectedLobbyIds = new Set<string>();
+    const lobbyCache = new Map<string, any>();
     let reaped = 0;
 
     for (const membership of memberships) {
-      const lastActive = membership.lastSeenAt ?? membership.joinedAt;
-      if (lastActive < cutoff) {
-        await ctx.db.delete(membership._id);
-        affectedLobbyIds.add(String(membership.lobbyId));
-        reaped += 1;
+      // Already gone; nothing to reap.
+      if (membership.leftAt != null) {
+        continue;
       }
+      const lastActive = membership.lastSeenAt ?? membership.joinedAt;
+      if (lastActive >= cutoff) {
+        continue;
+      }
+
+      const lobbyKey = String(membership.lobbyId);
+      if (!lobbyCache.has(lobbyKey)) {
+        lobbyCache.set(lobbyKey, await ctx.db.get(membership.lobbyId));
+      }
+      const lobby = lobbyCache.get(lobbyKey);
+
+      // Mirror `leave`: soft-delete once a game has started, hard-delete an
+      // idle pre-game member.
+      if (lobby?.currentGameId) {
+        await ctx.db.patch(membership._id, { leftAt: now });
+      } else {
+        await ctx.db.delete(membership._id);
+      }
+      affectedLobbyIds.add(lobbyKey);
+      reaped += 1;
     }
 
     // Also catch lobbies that are already empty but still marked open or
@@ -762,8 +833,14 @@ export const returnToLobby = mutationGeneric({
       .withIndex("by_lobby", (q) => q.eq("lobbyId", lobby._id))
       .collect();
 
+    // Start the next game with a clean slate: drop players who left the previous
+    // game, and clear ready state for everyone still here.
     await Promise.all(
-      memberships.map((m) => ctx.db.patch(m._id, { isReady: false })),
+      memberships.map((m) =>
+        m.leftAt != null
+          ? ctx.db.delete(m._id)
+          : ctx.db.patch(m._id, { isReady: false }),
+      ),
     );
 
     await recordEvent(ctx, {

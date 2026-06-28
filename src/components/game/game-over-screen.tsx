@@ -108,6 +108,11 @@ export function GameOverScreen({
                       size="sm"
                     />
                     <span>{entry.displayName}</span>
+                    {entry.isPresent === false ? (
+                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-400">
+                        Left
+                      </span>
+                    ) : null}
                   </span>
                   <span className="font-display text-2xl font-black">
                     {entry.totalScore}

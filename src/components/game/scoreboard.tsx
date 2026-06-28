@@ -70,10 +70,13 @@ export function Scoreboard({
             ? "bg-green-100"
             : "bg-red-100"
           : "bg-white";
+        const hasLeft = player.isPresent === false;
         return (
           <div className="relative" key={player.id}>
             <div
-              className={`clip-score relative flex min-h-24 items-center gap-3 px-4 py-3 pt-5 text-black shadow-lg ${cardResultClass}`}
+              className={`clip-score relative flex min-h-24 items-center gap-3 px-4 py-3 pt-5 text-black shadow-lg ${cardResultClass} ${
+                hasLeft ? "opacity-70" : ""
+              }`}
             >
               {player.id === hintmasterId ? (
                 <div className="font-display absolute left-6 right-8 top-0 flex items-center justify-center gap-1 rounded-b-xl bg-yellow-300 px-3 py-1 text-center text-[10px] font-black uppercase tracking-widest text-black">
@@ -98,8 +101,13 @@ export function Scoreboard({
                   </div>
                 ) : (
                   <>
-                    <p className="font-display truncate font-black">
-                      {player.displayName}
+                    <p className="font-display flex items-center gap-1.5 truncate font-black">
+                      <span className="truncate">{player.displayName}</span>
+                      {hasLeft ? (
+                        <span className="shrink-0 rounded bg-slate-300 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-slate-600">
+                          Left
+                        </span>
+                      ) : null}
                     </p>
                     {latestGuess ? (
                       <div className="mt-1 flex min-w-0 items-center gap-2 rounded-xl bg-black/10 px-2 py-1 text-xs font-bold">

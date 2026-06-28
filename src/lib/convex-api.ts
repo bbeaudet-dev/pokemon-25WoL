@@ -20,6 +20,9 @@ export type LobbyDetails = {
     isHost: boolean;
     isReady: boolean;
     joinedAt: number;
+    // Present in the lobby right now, vs. a participant who left/disconnected
+    // but is kept on screen with their scores. Absent only on in-game rosters.
+    isPresent?: boolean;
   }>;
   createdAt: number;
   updatedAt: number;
