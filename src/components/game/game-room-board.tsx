@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, RotateCcw, Send, SkipForward } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { GuestIdentity } from "@/lib/guest";
 import { PlayerAvatar } from "@/components/player-avatar";
@@ -44,6 +44,12 @@ export function GameRoomBoard({
   const [isLeaveGameConfirmOpen, setIsLeaveGameConfirmOpen] = useState(false);
   // Tracks the round we're announcing with the brief turn-start overlay.
   const [introRoundId, setIntroRoundId] = useState<string | null>(null);
+  // Transient popup announcing the hintmaster's latest hint to guessers.
+  const [hintToast, setHintToast] = useState<{ id: string; text: string } | null>(
+    null,
+  );
+  const seenHintIdRef = useRef<string | null>(null);
+  const hintInitRef = useRef(false);
   const round = room.round;
   const currentPlayer = room.players.find(
     (player) => player.guestId === identity.guestId,
@@ -75,6 +81,27 @@ export function GameRoomBoard({
     const timer = window.setTimeout(() => setIntroRoundId(null), 3500);
     return () => window.clearTimeout(timer);
   }, [roundId, roundStatus]);
+
+  // Pop a toast for guessers whenever the hintmaster submits a new hint. Skip
+  // hints that already existed when this view mounted so we don't flash on load.
+  useEffect(() => {
+    if (!hintInitRef.current) {
+      hintInitRef.current = true;
+      seenHintIdRef.current = latestHintId ?? null;
+      return;
+    }
+    if (!latestHintId || latestHintId === seenHintIdRef.current) {
+      return;
+    }
+    seenHintIdRef.current = latestHintId;
+    if (isHintmaster) {
+      return;
+    }
+    const text = round?.submittedHints.at(-1)?.text ?? "";
+    setHintToast({ id: latestHintId, text });
+    const timer = window.setTimeout(() => setHintToast(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [latestHintId, isHintmaster, round?.submittedHints]);
 
   async function handleEndTurn() {
     if (!round) {
@@ -139,6 +166,16 @@ export function GameRoomBoard({
           isHintmaster={isHintmaster}
           round={round}
           onDismiss={() => setIntroRoundId(null)}
+        />
+      ) : null}
+      {hintToast ? (
+        <HintToast
+          key={hintToast.id}
+          hintmasterName={hintmasterName}
+          hintmaster={room.players.find(
+            (player) => player.id === round.hintGiverPlayerId,
+          )}
+          text={hintToast.text}
         />
       ) : null}
       {roundEnded ? (
@@ -422,6 +459,36 @@ function TurnIntro({
         </p>
       </div>
     </button>
+  );
+}
+
+function HintToast({
+  hintmasterName,
+  hintmaster,
+  text,
+}: {
+  hintmasterName: string;
+  hintmaster?: GameRoom["players"][number];
+  text: string;
+}) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-40 flex justify-center px-4">
+      <div className="hint-pop flex max-w-md items-center gap-3 rounded-3xl border border-yellow-300/40 bg-slate-950/95 px-5 py-3 shadow-2xl">
+        <PlayerAvatar
+          displayName={hintmasterName}
+          imageUrl={hintmaster?.imageUrl}
+          size="sm"
+        />
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-300">
+            {hintmasterName} hinted
+          </p>
+          <p className="font-display truncate text-lg font-black text-white">
+            {text}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
