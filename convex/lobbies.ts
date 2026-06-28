@@ -9,7 +9,11 @@ import {
   makeGameSettings,
 } from "../src/lib/game/rules";
 import { getPlayerAvatarUrl } from "../src/lib/player-avatar";
-import { beginManualCycleIfReady } from "./games";
+import {
+  beginManualCycleIfReady,
+  ensureManualSelectionForPlayer,
+  isGameParticipant,
+} from "./games";
 
 const contentCategory = v.union(
   v.literal("pokemon"),
@@ -297,6 +301,53 @@ export const listOpen = queryGeneric({
   },
 });
 
+// In-progress games the caller is still part of, so the home screen can offer a
+// "Rejoin" entry (covers both still-members and players already reaped/left).
+export const listRejoinable = queryGeneric({
+  args: { guestId: v.string() },
+  handler: async (ctx, args) => {
+    if (!args.guestId) {
+      return [];
+    }
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_guestId", (q) => q.eq("guestId", args.guestId))
+      .unique();
+    if (!player) {
+      return [];
+    }
+
+    const inProgress = await ctx.db
+      .query("lobbies")
+      .withIndex("by_status_visibility", (q) => q.eq("status", "in_progress"))
+      .collect();
+
+    const rejoinable = [];
+    for (const lobby of inProgress) {
+      const game = lobby.currentGameId
+        ? await ctx.db.get(lobby.currentGameId)
+        : null;
+      if (!game || !isGameParticipant(game, player._id)) {
+        continue;
+      }
+
+      const players = await getLobbyPlayers(ctx, lobby._id);
+      const host = players.find((p) => p.isHost);
+      rejoinable.push({
+        id: lobby._id,
+        code: lobby.code,
+        mode: lobby.settings.mode,
+        playerCount: players.length,
+        maxPlayers: lobby.maxPlayers,
+        hostName: host?.displayName ?? "Unknown Host",
+      });
+    }
+
+    return rejoinable;
+  },
+});
+
 export const getByCode = queryGeneric({
   args: { code: v.string() },
   handler: async (ctx, args) => {
@@ -428,6 +479,82 @@ export const join = mutationGeneric({
       type: "lobby.joined",
       payload: {},
     });
+
+    return { lobbyId: lobby._id, code: lobby.code };
+  },
+});
+
+// Re-enter an in-progress game after leaving / disconnecting. Unlike join, this
+// is allowed while the lobby is in_progress, but ONLY for players who are still
+// part of the running game (kept in its round order / scores). It restores a
+// lobby membership and, during a manual pick phase, re-grants a selection slot.
+export const rejoin = mutationGeneric({
+  args: {
+    code: v.string(),
+    guestId: v.string(),
+    displayName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const lobby = await ctx.db
+      .query("lobbies")
+      .withIndex("by_code", (q) => q.eq("code", args.code.toUpperCase()))
+      .unique();
+
+    if (!lobby) {
+      throw new Error("Lobby not found.");
+    }
+
+    if (lobby.status !== "in_progress") {
+      throw new Error("This game is not in progress.");
+    }
+
+    const game = lobby.currentGameId
+      ? await ctx.db.get(lobby.currentGameId)
+      : null;
+    if (!game) {
+      throw new Error("This game is no longer available.");
+    }
+
+    const playerId = await upsertGuestPlayer(
+      ctx,
+      args.guestId,
+      args.displayName,
+    );
+
+    if (!isGameParticipant(game, playerId)) {
+      throw new Error("You are not part of this game.");
+    }
+
+    const now = Date.now();
+    const existingMembership = await ctx.db
+      .query("lobbyPlayers")
+      .withIndex("by_lobby_player", (q) =>
+        (q as any).eq("lobbyId", lobby._id).eq("playerId", playerId),
+      )
+      .unique();
+
+    if (existingMembership) {
+      await ctx.db.patch(existingMembership._id, { lastSeenAt: now });
+    } else {
+      await ctx.db.insert("lobbyPlayers", {
+        lobbyId: lobby._id,
+        playerId,
+        isHost: false,
+        isReady: false,
+        joinedAt: now,
+        lastSeenAt: now,
+      });
+      await recordEvent(ctx, {
+        lobbyId: lobby._id,
+        playerId,
+        type: "lobby.rejoined",
+        payload: {},
+      });
+    }
+
+    // If a manual game is still mid-pick, make sure the rejoiner has a slot.
+    const refreshedGame = await ctx.db.get(game._id);
+    await ensureManualSelectionForPlayer(ctx, refreshedGame, playerId);
 
     return { lobbyId: lobby._id, code: lobby.code };
   },

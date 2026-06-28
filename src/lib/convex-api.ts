@@ -60,6 +60,9 @@ export type GameRoom = {
       playerId: Id<"players">;
       lockedIn: boolean;
     }>;
+    // True when the caller (by guestId) is part of this game but may have lost
+    // their lobby membership — used to offer a seamless rejoin.
+    callerIsParticipant: boolean;
   };
   round: null | {
     id: Id<"rounds">;

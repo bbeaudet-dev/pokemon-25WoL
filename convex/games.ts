@@ -299,8 +299,54 @@ export async function beginManualCycleIfReady(ctx: any, game: any) {
   return true;
 }
 
+// Give a (re)joining player a fresh, unlocked selection entry if a manual cycle
+// is mid-pick and they don't have one yet. Used when a participant rejoins
+// during the selection phase so they can pick their words like everyone else.
+export async function ensureManualSelectionForPlayer(
+  ctx: any,
+  game: any,
+  playerId: string,
+) {
+  if (!game || game.phase !== "manual_selection") {
+    return;
+  }
+
+  const selections = game.manualSelections ?? [];
+  if (
+    selections.some((entry: any) => String(entry.playerId) === String(playerId))
+  ) {
+    return;
+  }
+
+  const entry = {
+    playerId,
+    targets: await selectContentWords(ctx, game.settings),
+    lockedIn: false,
+    updatedAt: Date.now(),
+  };
+
+  await ctx.db.patch(game._id, {
+    manualSelections: [...selections, entry],
+    updatedAt: Date.now(),
+  });
+}
+
 function toScoreMap(scores: any[]) {
   return new Map(scores.map((score) => [score.playerId, { ...score }]));
+}
+
+// Whether a player is part of an in-progress game (kept in the round order or
+// score table even after their lobby membership was removed).
+export function isGameParticipant(game: any, playerId: string) {
+  if (!game) {
+    return false;
+  }
+  return (
+    game.roundOrder.some((id: any) => String(id) === String(playerId)) ||
+    (game.scores ?? []).some(
+      (score: any) => String(score.playerId) === String(playerId),
+    )
+  );
 }
 
 export const getRoom = queryGeneric({
@@ -315,6 +361,9 @@ export const getRoom = queryGeneric({
     const game = lobby.currentGameId
       ? await ctx.db.get(lobby.currentGameId)
       : null;
+    const caller = args.guestId
+      ? await getPlayerByGuestId(ctx, args.guestId)
+      : null;
 
     // Lock progress is public (names + locked flag); each player's chosen words
     // are secret, so we only expose the caller's own selection.
@@ -325,17 +374,20 @@ export const getRoom = queryGeneric({
       targets: any[];
       lockedIn: boolean;
     } | null = null;
-    if (game && args.guestId) {
-      const caller = await getPlayerByGuestId(ctx, args.guestId);
-      const entry = caller
-        ? (game.manualSelections ?? []).find(
-            (s: any) => String(s.playerId) === String(caller._id),
-          )
-        : null;
+    if (game && caller) {
+      const entry = (game.manualSelections ?? []).find(
+        (s: any) => String(s.playerId) === String(caller._id),
+      );
       if (entry) {
         manualSelection = { targets: entry.targets, lockedIn: entry.lockedIn };
       }
     }
+
+    // Lets the client offer a seamless rejoin to a participant whose lobby
+    // membership was dropped (left, closed tab, or reaped) mid-game.
+    const callerIsParticipant = Boolean(
+      game && caller && isGameParticipant(game, caller._id),
+    );
     const round = game?.currentRoundId
       ? await ctx.db.get(game.currentRoundId)
       : null;
@@ -369,6 +421,7 @@ export const getRoom = queryGeneric({
             completedAt: game.completedAt,
             manualSelection,
             manualLockProgress,
+            callerIsParticipant,
           }
         : null,
       round: round
